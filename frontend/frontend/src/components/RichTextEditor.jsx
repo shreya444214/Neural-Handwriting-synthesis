@@ -15,6 +15,7 @@ import {
 
 const fontFamilies = [
   { label: 'Default', value: 'Inter' },
+  { label: '🖋️ My Cursive Handwriting', value: 'Cedarville Cursive' },
   { label: 'Caveat', value: 'Caveat' },
   { label: 'Indie Flower', value: 'Indie Flower' },
   { label: 'Dancing Script', value: 'Dancing Script' },

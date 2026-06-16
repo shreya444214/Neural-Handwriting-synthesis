@@ -9,6 +9,9 @@ backend/uploads/
 # Node
 frontend/frontend/node_modules/
 frontend/frontend/dist/
+frontend/node_modules/
+frontend/package-lock.json
+frontend/package.json
 
 # Environment
 .env
@@ -22,3 +25,10 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Local/Generated files
+files/
+*.ppt
+create_ppt.py
+create_seminar_ppt.py
+backend/admin_check.py

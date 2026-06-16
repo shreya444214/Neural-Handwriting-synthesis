@@ -61,7 +61,10 @@ export default function Dashboard() {
 
   const formatDate = (iso) => {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-US', {
+    // Backend sends UTC timestamps without 'Z' suffix — append it so JS Date
+    // correctly interprets as UTC and converts to local timezone for display
+    const utcIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+    return new Date(utcIso).toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   };

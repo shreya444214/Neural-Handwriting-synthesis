@@ -182,3 +182,31 @@ class OTP(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
     is_used = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class HandwritingStyle(db.Model):
+    __tablename__ = 'handwriting_styles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(100), default='My Style')
+    stored_name = db.Column(db.String(256), nullable=False)  # UUID image filename
+    font_match = db.Column(db.String(100), nullable=False)   # closest Google Font
+    ink_color = db.Column(db.String(20), default='#1a1a2e')  # detected ink color  
+    params = db.Column(db.Text, nullable=False)  # JSON string of style params
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    owner = db.relationship('User', backref=db.backref('handwriting_styles', lazy=True, cascade='all, delete-orphan'))
+    
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'stored_name': self.stored_name,
+            'font_match': self.font_match,
+            'ink_color': self.ink_color,
+            'params': json.loads(self.params) if self.params else {},
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }

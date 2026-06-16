@@ -186,7 +186,7 @@ export default function Profile() {
               <Calendar size={22} style={{ color: 'var(--accent-purple)' }} />
               <div>
                 <p style={styles.statValue}>
-                  {user?.last_login ? new Date(user.last_login).toLocaleDateString() : 'Today'}
+                  {user?.last_login ? new Date(user.last_login.endsWith('Z') || user.last_login.includes('+') ? user.last_login : user.last_login + 'Z').toLocaleDateString() : 'Today'}
                 </p>
                 <p style={styles.statLabel}>Last Login</p>
               </div>
@@ -228,7 +228,7 @@ export default function Profile() {
                 <div>
                   <p style={styles.infoLabel}>Member Since</p>
                   <p style={styles.infoValue}>
-                    {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', {
+                    {user?.created_at ? new Date(user.created_at.endsWith('Z') || user.created_at.includes('+') ? user.created_at : user.created_at + 'Z').toLocaleDateString('en-US', {
                       year: 'numeric', month: 'long', day: 'numeric',
                     }) : '—'}
                   </p>

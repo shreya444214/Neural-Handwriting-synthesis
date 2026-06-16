@@ -164,7 +164,8 @@ export default function ChatRoom() {
 
   const formatTime = (iso) => {
     if (!iso) return '';
-    return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const utcIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+    return new Date(utcIso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (

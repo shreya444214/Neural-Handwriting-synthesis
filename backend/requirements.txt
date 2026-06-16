@@ -11,7 +11,9 @@ python-docx==1.1.2
 openpyxl==3.1.5
 python-pptx==1.0.2
 Pillow==11.2.1
-# pytesseract==0.3.13  (disabled for cloud deployment - needs Tesseract binary)
-# Also requires Tesseract-OCR system binary:
-# Download from: https://github.com/tesseract-ocr/tesseract
+pytesseract==0.3.13
+pdf2image==1.17.0
+# System dependencies required:
+# - Tesseract-OCR: https://github.com/UB-Mannheim/tesseract/wiki
+# - Poppler (for pdf2image): https://github.com/oschwartz10612/poppler-windows/releases
 gunicorn==23.0.0

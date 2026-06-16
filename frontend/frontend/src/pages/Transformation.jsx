@@ -9,147 +9,18 @@ import {
   Upload, Mic, MicOff, Camera, CameraOff, PenTool, Download,
   Share2, FileText, Wand2, RefreshCw, Type, Zap, ArrowRightLeft,
   Eye, Palette, LayoutGrid, AlignLeft, Sparkles, RotateCcw,
-  ChevronDown, ChevronUp, Sliders, Image, Check, X, Copy, Filter,
-  Shuffle, Dices
+  ChevronDown, ChevronUp, Sliders, Image, Check, X, Copy, Filter
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-/* ══════════════════════════════════════════════════════════════
-   TRAINED HANDWRITING STYLE ENGINE
-   Each style has per-character variation parameters learned from
-   reference handwriting samples. Parameters control:
-   - rotation: per-char tilt range (degrees)
-   - baselineShift: vertical wobble (px)
-   - sizeVariation: scale range (0-1)
-   - xDrift: horizontal spacing jitter (px)
-   - pressure: ink opacity variation (0-1)
-   - slant: global italic lean (degrees)
-   - connectedness: how close characters sit (0=spaced, 1=touching)
-   - rhythm: regularity of spacing (0=uniform, 1=very irregular)
-   ══════════════════════════════════════════════════════════════ */
-
-const trainedStyles = [
-  {
-    id: 'clean-print',
-    name: 'Clean Print',
-    description: 'Neat printed handwriting — tidy and readable',
-    font: 'Patrick Hand',
-    inkColor: '#1a1a2e',
-    params: { rotation: 1.5, baselineShift: 1.0, sizeVariation: 0.04, xDrift: 0.3, pressure: 0.05, slant: 0, connectedness: 0.1, rhythm: 0.15 },
-    emoji: '✏️',
-  },
-  {
-    id: 'flowing-cursive',
-    name: 'Flowing Cursive',
-    description: 'Elegant connected script — smooth and flowing',
-    font: 'Dancing Script',
-    inkColor: '#1a1a2e',
-    params: { rotation: 2.5, baselineShift: 1.8, sizeVariation: 0.08, xDrift: 0.5, pressure: 0.10, slant: 8, connectedness: 0.8, rhythm: 0.25 },
-    emoji: '🖊️',
-  },
-  {
-    id: 'blue-ink-cursive',
-    name: 'Blue Ink Calligraphy',
-    description: 'Decorative blue pen on ruled paper — classic student style',
-    font: 'Sacramento',
-    inkColor: '#1a3a8a',
-    params: { rotation: 2.0, baselineShift: 1.5, sizeVariation: 0.06, xDrift: 0.4, pressure: 0.12, slant: 10, connectedness: 0.9, rhythm: 0.20 },
-    emoji: '🖋️',
-  },
-  {
-    id: 'casual-scrawl',
-    name: 'Casual Scrawl',
-    description: 'Quick messy notes — hurried and natural',
-    font: 'Caveat',
-    inkColor: '#222222',
-    params: { rotation: 4.0, baselineShift: 2.5, sizeVariation: 0.12, xDrift: 1.0, pressure: 0.15, slant: -3, connectedness: 0.3, rhythm: 0.50 },
-    emoji: '📝',
-  },
-  {
-    id: 'vintage-letter',
-    name: 'Vintage Letter',
-    description: 'Old-fashioned ink pen — elegant and classic',
-    font: 'Homemade Apple',
-    inkColor: '#2d1810',
-    params: { rotation: 3.0, baselineShift: 2.0, sizeVariation: 0.10, xDrift: 0.8, pressure: 0.18, slant: 5, connectedness: 0.5, rhythm: 0.35 },
-    emoji: '📜',
-  },
-];
-
-/* Seeded pseudo-random number generator for reproducible styles */
-function seededRandom(seed) {
-  let s = seed;
-  return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
-
-/* Generate a random handwriting style with a seed */
-function generateRandomStyle(seed) {
-  const rng = seededRandom(seed);
-  const fonts = handwritingFonts;
-  const font = fonts[Math.floor(rng() * fonts.length)];
-  const inkColors = ['#1a1a2e','#222222','#1a3a8a','#2d1810','#0d4f2b','#4a1942','#333333','#0a2647'];
-  const inkColor = inkColors[Math.floor(rng() * inkColors.length)];
-  const adjectives = ['Wandering','Dreamy','Crisp','Breezy','Gentle','Bold','Whispering','Stormy','Twilight','Moonlit','Sunlit','Rustic','Velvet','Misty','Golden'];
-  const nouns = ['Quill','Script','Ink','Letter','Stroke','Flow','Pen','Note','Journal','Page'];
-  const adj = adjectives[Math.floor(rng() * adjectives.length)];
-  const noun = nouns[Math.floor(rng() * nouns.length)];
-  const emojis = ['✍️','🖊️','✏️','📝','🖋️','📜','🪶','📄','💫','🎨'];
-
-  return {
-    id: `random-${seed}`,
-    name: `${adj} ${noun}`,
-    description: `Randomly generated style #${seed}`,
-    font: font.name,
-    inkColor,
-    params: {
-      rotation: 1 + rng() * 5,
-      baselineShift: 0.5 + rng() * 3,
-      sizeVariation: 0.02 + rng() * 0.15,
-      xDrift: 0.2 + rng() * 1.5,
-      pressure: 0.03 + rng() * 0.2,
-      slant: (rng() - 0.4) * 15,
-      connectedness: rng() * 0.9,
-      rhythm: 0.1 + rng() * 0.5,
-    },
-    emoji: emojis[Math.floor(rng() * emojis.length)],
-  };
-}
-
-/* ── Font Library (20 Humanized Styles) ─────────────────────── */
+/* 20 Google Handwriting fonts loaded in index.html */
 const handwritingFonts = [
-  { name: 'Caveat', label: 'Caveat', style: 'Casual handwriting', category: 'casual' },
-  { name: 'Indie Flower', label: 'Indie Flower', style: 'Fun and playful', category: 'casual' },
-  { name: 'Dancing Script', label: 'Dancing Script', style: 'Elegant cursive', category: 'cursive' },
-  { name: 'Patrick Hand', label: 'Patrick Hand', style: 'Clean handwriting', category: 'neat' },
-  { name: 'Shadows Into Light', label: 'Shadows Into Light', style: 'Whimsical script', category: 'artistic' },
-  { name: 'Kalam', label: 'Kalam', style: 'Indian handwriting', category: 'casual' },
-  { name: 'Architects Daughter', label: 'Architects Daughter', style: 'Blueprint style', category: 'neat' },
-  { name: 'Coming Soon', label: 'Coming Soon', style: 'Relaxed notes', category: 'casual' },
-  { name: 'Gochi Hand', label: 'Gochi Hand', style: 'Bold marker', category: 'artistic' },
-  { name: 'Handlee', label: 'Handlee', style: 'Smooth ballpoint', category: 'neat' },
-  { name: 'Just Another Hand', label: 'Just Another Hand', style: 'Quick notes', category: 'messy' },
-  { name: 'Loved by the King', label: 'Loved by the King', style: 'Scratchy pen', category: 'messy' },
-  { name: 'Nothing You Could Do', label: 'Nothing You Could Do', style: 'Scrawled note', category: 'messy' },
-  { name: 'Reenie Beanie', label: 'Reenie Beanie', style: 'Scribbled memo', category: 'messy' },
-  { name: 'Rock Salt', label: 'Rock Salt', style: 'Rough & edgy', category: 'artistic' },
-  { name: 'Sacramento', label: 'Sacramento', style: 'Flowing script', category: 'cursive' },
-  { name: 'Satisfy', label: 'Satisfy', style: 'Smooth cursive', category: 'cursive' },
-  { name: 'Homemade Apple', label: 'Homemade Apple', style: 'Natural ink pen', category: 'artistic' },
-  { name: 'La Belle Aurore', label: 'La Belle Aurore', style: 'Vintage letter', category: 'cursive' },
-  { name: 'Cedarville Cursive', label: 'Cedarville Cursive', style: 'School cursive', category: 'cursive' },
-];
-
-const fontCategories = [
-  { id: 'all', label: 'All Styles' },
-  { id: 'casual', label: 'Casual' },
-  { id: 'cursive', label: 'Cursive' },
-  { id: 'artistic', label: 'Artistic' },
-  { id: 'neat', label: 'Neat' },
-  { id: 'messy', label: 'Messy' },
+  'Caveat', 'Indie Flower', 'Dancing Script', 'Patrick Hand',
+  'Shadows Into Light', 'Kalam', 'Architects Daughter', 'Coming Soon',
+  'Gochi Hand', 'Handlee', 'Just Another Hand', 'Loved by the King',
+  'Nothing You Could Do', 'Reenie Beanie', 'Rock Salt', 'Sacramento',
+  'Satisfy', 'Homemade Apple', 'La Belle Aurore', 'Cedarville Cursive',
 ];
 
 /* ── Background Pre-sets ──────────────────────────────────────── */
@@ -203,41 +74,79 @@ export default function Transformation() {
   const [textTilt, setTextTilt] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  /* ── Font Category Filter ───────────────────────────────── */
-  const [fontCategoryFilter, setFontCategoryFilter] = useState('all');
-
   /* ── Humanization Engine ────────────────────────────────── */
   const [humanizeEnabled, setHumanizeEnabled] = useState(true);
-  const [variationIntensity, setVariationIntensity] = useState(50);
+  const [variationIntensity, setVariationIntensity] = useState(65);
 
-  /* ── Trained Style Engine ───────────────────────────────── */
-  const [activeTrainedStyle, setActiveTrainedStyle] = useState(null);
-  const [randomStyles, setRandomStyles] = useState(() => {
-    const initial = [];
-    for (let i = 0; i < 4; i++) {
-      initial.push(generateRandomStyle(Date.now() + i * 1000));
-    }
-    return initial;
-  });
-  const [styleTab, setStyleTab] = useState('trained'); // trained | fonts | random
+  /* ── Custom Handwriting Style Engine ────────────────────── */
+  const [savedStyles, setSavedStyles] = useState([]);
+  const [activeStyle, setActiveStyle] = useState(null);  // {id, name, font_match, ink_color, params, ...}
+  const [styleFile, setStyleFile] = useState(null);
+  const [analyzingStyle, setAnalyzingStyle] = useState(false);
+  const [styleName, setStyleName] = useState('');
 
-  const generateNewRandomStyles = () => {
-    const seed = Date.now();
-    const newStyles = [];
-    for (let i = 0; i < 4; i++) {
-      newStyles.push(generateRandomStyle(seed + i * 777));
+  /* ── Load saved styles on mount ─────────────────────────── */
+  useEffect(() => {
+    fetchSavedStyles();
+  }, []);
+
+  const fetchSavedStyles = async () => {
+    try {
+      const res = await api.get('/styles');
+      setSavedStyles(res.data.styles || []);
+      // Auto-select most recent style if none active
+      if (!activeStyle && res.data.styles?.length > 0) {
+        applyCustomStyle(res.data.styles[0]);
+      }
+    } catch (err) {
+      console.log('Failed to load styles:', err);
     }
-    setRandomStyles(newStyles);
-    addToast('Generated 4 new random styles! 🎲', 'success');
   };
 
-  const applyTrainedStyle = (style) => {
-    setActiveTrainedStyle(style);
-    setSelectedFont(style.font);
+  const uploadNewStyle = async () => {
+    if (!styleFile) {
+      addToast('Please select a handwriting sample image', 'warning');
+      return;
+    }
+    setAnalyzingStyle(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', styleFile);
+      if (styleName.trim()) formData.append('name', styleName.trim());
+      const res = await api.post('/styles/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      addToast(`Style "${res.data.style.name}" analyzed & saved! ✨`, 'success');
+      setStyleFile(null);
+      setStyleName('');
+      await fetchSavedStyles();
+      applyCustomStyle(res.data.style);
+    } catch (err) {
+      addToast('Failed to analyze handwriting: ' + (err.response?.data?.error || 'Unknown error'), 'error');
+    } finally {
+      setAnalyzingStyle(false);
+    }
+  };
+
+  const deleteCustomStyle = async (styleId) => {
+    if (!window.confirm('Delete this handwriting style?')) return;
+    try {
+      await api.delete(`/styles/${styleId}`);
+      addToast('Style deleted', 'success');
+      if (activeStyle?.id === styleId) setActiveStyle(null);
+      fetchSavedStyles();
+    } catch {
+      addToast('Failed to delete style', 'error');
+    }
+  };
+
+  const applyCustomStyle = (style) => {
+    setActiveStyle(style);
+    setSelectedFont(style.font_match);
     setHumanizeEnabled(true);
 
-    // Ensure ink color contrasts with current background
-    let ink = style.inkColor;
+    // Apply detected ink color with contrast check
+    let ink = style.ink_color || '#1a1a2e';
     try {
       const bgLum = getLuminance(bgColor);
       const inkLum = getLuminance(ink);
@@ -249,21 +158,19 @@ export default function Transformation() {
     } catch { /* ignore */ }
     setFontColor(ink);
 
-    // Map style params to variation intensity
+    // Apply analyzed parameters
+    const p = style.params || {};
+    if (p.fontSize) setFontSize(p.fontSize);
+    if (p.lineHeight) setLineHeight(p.lineHeight);
+    if (p.slant) setTextTilt(p.slant > 3 ? 2 : p.slant < -1 ? -1 : 0);
+
     const avgIntensity = Math.min(100, Math.round(
-      (style.params.rotation / 6 + style.params.baselineShift / 3.5 +
-       style.params.sizeVariation / 0.17 + style.params.pressure / 0.23) * 25
+      ((p.rotation || 1.5) / 3.5 + (p.baselineShift || 0.8) / 2.0 +
+       (p.sizeVariation || 0.04) / 0.10 + (p.pressure || 0.06) / 0.20) * 25
     ));
     setVariationIntensity(avgIntensity);
-    if (style.params.slant) setTextTilt(style.params.slant > 5 ? 2 : style.params.slant < -2 ? -1 : 0);
-    addToast(`Applied "${style.name}" style ✨`, 'success');
+    addToast(`Applied "${style.name}" — matched to ${style.font_match} ✍️`, 'success');
   };
-
-  /* ── Filtered fonts ─────────────────────────────────────── */
-  const filteredFonts = useMemo(() => {
-    if (fontCategoryFilter === 'all') return handwritingFonts;
-    return handwritingFonts.filter(f => f.category === fontCategoryFilter);
-  }, [fontCategoryFilter]);
 
   /* ── Auto-load file from Dashboard ──────────────────────── */
   useEffect(() => {
@@ -304,7 +211,10 @@ export default function Transformation() {
 
   /* ── Speech ─────────────────────────────────────────────── */
   const [isRecording, setIsRecording] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState('');
+  const [interimText, setInterimText] = useState('');
   const recognitionRef = useRef(null);
+  const baseTextRef = useRef('');
 
   /* ── Camera ─────────────────────────────────────────────── */
   const [cameraActive, setCameraActive] = useState(false);
@@ -352,24 +262,49 @@ export default function Transformation() {
     setFile(selectedFile);
     if (!selectedFile) return;
 
+    const ext = selectedFile.name.split('.').pop()?.toLowerCase();
+    const isPdf = ext === 'pdf';
+    const isImage = ['jpg','jpeg','png','bmp','tiff','gif','webp'].includes(ext);
+
     try {
       setLoading(true);
+      if (isPdf || isImage) {
+        addToast(
+          isPdf
+            ? '📄 Uploading PDF — handwriting OCR may take a moment…'
+            : '🖼️ Uploading image — running OCR extraction…',
+          'info'
+        );
+      }
       const formData = new FormData();
       formData.append('file', selectedFile);
       const res = await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000, // 2 min timeout for OCR processing
       });
       setUploadedFileId(res.data.file.id);
       const extracted = res.data.file.content_text || '';
       setTextContent(extracted);
       setEditorContent(extracted);
-      if (extracted) {
-        addToast('File uploaded & text extracted! ✨', 'success');
+
+      // Check if OCR returned an error/status message
+      const isOcrError = extracted.startsWith('[') && extracted.endsWith(']');
+
+      if (isOcrError) {
+        addToast(extracted.slice(1, -1), 'warning');
+      } else if (extracted && extracted.length > 10) {
+        addToast(`File uploaded & text extracted! ✨ (${extracted.length} characters)`, 'success');
+      } else if (extracted) {
+        addToast('File uploaded. Only a small amount of text was extracted — the handwriting may be unclear.', 'warning');
       } else {
-        addToast('File uploaded! No text could be extracted.', 'warning');
+        addToast('File uploaded but no text could be extracted. Ensure the handwriting is clear with dark ink on light paper.', 'warning');
       }
     } catch (err) {
-      addToast(err.response?.data?.error || 'Upload failed', 'error');
+      if (err.code === 'ECONNABORTED') {
+        addToast('Upload timed out — the file may be too large or OCR is taking too long. Try a smaller file.', 'error');
+      } else {
+        addToast(err.response?.data?.error || 'Upload failed', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -398,43 +333,134 @@ export default function Transformation() {
   };
 
   /* ── Speech Recognition ──────────────────────────────────── */
-  const toggleRecording = () => {
+  const getErrorMessage = (error) => {
+    switch (error) {
+      case 'not-allowed':
+        return '🚫 Microphone access denied. Please click the lock icon in your browser\'s address bar and allow microphone access, then try again.';
+      case 'no-speech':
+        return '🔇 No speech detected. Please speak louder or move closer to your microphone.';
+      case 'network':
+        return '🌐 Network error. Speech recognition requires an internet connection. Please check your connection and try again.';
+      case 'audio-capture':
+        return '🎤 No microphone found. Please connect a microphone and try again.';
+      case 'aborted':
+        return 'Recording stopped.';
+      case 'service-not-allowed':
+        return '⚠️ Speech service not available. This may require HTTPS. Try using Chrome or Edge browser.';
+      default:
+        return `Speech recognition error: ${error}. Please try again.`;
+    }
+  };
+
+  const toggleRecording = async () => {
     if (isRecording) {
       recognitionRef.current?.stop();
       setIsRecording(false);
+      setVoiceStatus('Stopped');
+      setInterimText('');
+      setTimeout(() => setVoiceStatus(''), 2000);
       return;
+    }
+
+    // Check HTTPS (speech recognition requires secure context except localhost)
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (!isSecure) {
+      addToast('⚠️ Speech recognition requires HTTPS or localhost. Your current connection is not secure.', 'warning');
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      addToast('Speech recognition not supported. Use Chrome or Edge.', 'warning');
+      addToast('Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.', 'warning');
       return;
     }
+
+    // Request microphone permission first
+    try {
+      setVoiceStatus('Requesting microphone access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Permission granted — stop the stream immediately (SpeechRecognition manages its own audio)
+      stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      const msg = err.name === 'NotAllowedError'
+        ? '🚫 Microphone access denied. Please allow microphone access in your browser settings and try again.'
+        : err.name === 'NotFoundError'
+          ? '🎤 No microphone found. Please connect a microphone and try again.'
+          : `Microphone error: ${err.message}`;
+      addToast(msg, 'error');
+      setVoiceStatus('');
+      return;
+    }
+
+    // Save current text as base so we append to it
+    baseTextRef.current = textContent;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setVoiceStatus('🎤 Listening... Speak now');
+      addToast('Listening… Speak now 🎤', 'info');
+    };
+
     recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
+      let finalTranscript = '';
+      let currentInterim = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          currentInterim += transcript;
+        }
       }
-      setTextContent(transcript);
+
+      if (finalTranscript) {
+        // Append finalized speech to the base text
+        const separator = baseTextRef.current && !baseTextRef.current.endsWith(' ') && !baseTextRef.current.endsWith('\n') ? ' ' : '';
+        const newText = baseTextRef.current + separator + finalTranscript;
+        baseTextRef.current = newText;
+        setTextContent(newText);
+        setEditorContent(newText);
+        setInterimText('');
+        setVoiceStatus('✅ Recognized: ' + finalTranscript.substring(0, 50) + (finalTranscript.length > 50 ? '...' : ''));
+      }
+
+      if (currentInterim) {
+        setInterimText(currentInterim);
+        setVoiceStatus('👂 Hearing: ' + currentInterim.substring(0, 50) + (currentInterim.length > 50 ? '...' : ''));
+      }
     };
 
     recognition.onerror = (event) => {
-      addToast('Speech recognition error: ' + event.error, 'error');
+      console.error('Speech recognition error:', event.error);
+      const msg = getErrorMessage(event.error);
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+        addToast(msg, 'error');
+      }
+      setVoiceStatus(msg);
       setIsRecording(false);
+      setInterimText('');
     };
 
-    recognition.onend = () => setIsRecording(false);
+    recognition.onend = () => {
+      setIsRecording(false);
+      setInterimText('');
+      if (!voiceStatus.startsWith('🚫') && !voiceStatus.startsWith('⚠️')) {
+        setVoiceStatus('');
+      }
+    };
 
     recognitionRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
-    addToast('Listening… Speak now 🎤', 'info');
+    try {
+      recognition.start();
+    } catch (err) {
+      addToast('Failed to start speech recognition: ' + err.message, 'error');
+      setVoiceStatus('');
+    }
   };
 
   /* ── Camera ───────────────────────────────────────────────── */
@@ -651,64 +677,207 @@ export default function Transformation() {
     }
   }, [bgColor]);
 
-  /* ── Humanized Text Renderer (Trained Style Aware) ─────── */
-  const renderHumanizedText = (text) => {
-    if (!humanizeEnabled) return text;
-    const p = activeTrainedStyle?.params || null;
+  /* ── Seeded Pseudo-Random Number Generator (PRNG) ── */
+  const getSeededRandom = (seedString) => {
+    let hash = 0;
+    for (let i = 0; i < seedString.length; i++) {
+      hash = seedString.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    let currentSeed = hash;
+    return () => {
+      const x = Math.sin(currentSeed++) * 10000;
+      return x - Math.floor(x);
+    };
+  };
+
+  /* ── Humanized Text Renderer (Natural Handwriting) ──────── */
+  const renderHumanizedText = (text, overrideParams = null, overrideFont = null) => {
+    if (!text) return ' ';
+    const p = overrideParams || activeStyle?.params || null;
     const intensity = variationIntensity / 100;
-    const chars = text.split('');
-    const globalSlant = p ? p.slant : 0;
+    
+    // Fallback standard styling if humanize is disabled
+    if (!humanizeEnabled && !overrideParams) {
+      return text.split('\n').map((line, li) => (
+        <span key={`line-${li}`} style={{ display: 'block' }}>
+          {line || ' '}
+        </span>
+      ));
+    }
 
-    return chars.map((char, i) => {
-      if (char === '\n') return <br key={i} />;
-      if (char === ' ') {
-        // Rhythm-based word spacing variation
-        const rhythmSeed = Math.sin(i * 3.77) * 10000;
-        const rhythmR = rhythmSeed - Math.floor(rhythmSeed);
-        const extraSpace = p ? rhythmR * p.rhythm * 8 : rhythmR * intensity * 4;
-        return <span key={i} style={{ display: 'inline-block', width: `${4 + extraSpace}px` }} />;
+    const strokeW = p?.strokeWeight || 1.0;
+    const sizeVarParam = p?.sizeVariation ?? 0.04;
+    const baselineShiftParam = p?.baselineShift ?? 0.8;
+    const rotationParam = p?.rotation ?? 1.5;
+    const xDriftParam = p?.xDrift ?? 0.3;
+    const pressureParam = p?.pressure ?? 0.06;
+    const rhythmParam = p?.rhythm ?? 0.10;
+    const letterGapParam = p?.letterGap ?? 0;
+
+    // Determine font type (cursive or print) for character-level variation
+    // Cursive fonts shouldn't split characters because it breaks cursive connectors/ligatures.
+    const cursiveFontList = [
+      'Caveat', 'Dancing Script', 'Sacramento', 'Satisfy', 
+      'Cedarville Cursive', 'Homemade Apple', 'La Belle Aurore', 
+      'Loved by the King', 'Reenie Beanie', 'Nothing You Could Do'
+    ];
+    const targetFont = overrideFont || selectedFont;
+    const isCursiveFont = cursiveFontList.includes(targetFont);
+    const isCursive = p ? (p.connectedness > 0.55 || isCursiveFont) : isCursiveFont;
+
+    // Split text into lines
+    const lines = text.split('\n');
+    const elements = [];
+
+    // Pre-calculate line drift offsets (like a random walk)
+    const lineOffsets = [];
+    let cumulativeDrift = 0;
+    const lineRng = getSeededRandom(text.substring(0, 30) || 'default-seed');
+
+    for (let li = 0; li < lines.length; li++) {
+      // Walk drift: simulate arm moving down/up the page
+      cumulativeDrift += (lineRng() - 0.5) * (baselineShiftParam * 1.5 * intensity);
+      // Clamp cumulative drift to avoid lines running into each other
+      cumulativeDrift = Math.max(-6, Math.min(6, cumulativeDrift));
+      
+      const lineRotation = (lineRng() - 0.5) * (rotationParam * 0.3 * intensity);
+      const lineMarginShift = (lineRng() - 0.5) * (xDriftParam * 12.0 * intensity); // Up to ±6px left margin indentation variation
+      
+      lineOffsets.push({ drift: cumulativeDrift, rotation: lineRotation, marginShift: lineMarginShift });
+    }
+
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li];
+      if (line === '') {
+        // Render empty block line to maintain spacing
+        elements.push(
+          <div key={`line-${li}`} style={{ 
+            display: 'block', 
+            height: `${fontSize * lineHeight}px` 
+          }} />
+        );
+        continue;
       }
 
-      // Deterministic pseudo-random per character
-      const s1 = Math.sin(i * 7.31 + 3.14) * 10000;
-      const s2 = Math.cos(i * 11.97 + 1.41) * 10000;
-      const s3 = Math.sin(i * 5.67 + 2.72) * 10000;
-      const s4 = Math.cos(i * 13.37 + 0.87) * 10000;
-      const s5 = Math.sin(i * 9.13 + 4.56) * 10000;
-      const r1 = s1 - Math.floor(s1);
-      const r2 = s2 - Math.floor(s2);
-      const r3 = s3 - Math.floor(s3);
-      const r4 = s4 - Math.floor(s4);
-      const r5 = s5 - Math.floor(s5);
+      const words = line.split(' ');
+      const lineDrift = lineOffsets[li].drift;
+      const lineRot = lineOffsets[li].rotation;
+      const lineMarginShift = lineOffsets[li].marginShift;
 
-      let rotation, yShift, xShift, scale, opacity;
-
-      if (p) {
-        // Use trained style parameters
-        rotation = (r1 - 0.5) * p.rotation * 2 + globalSlant * 0.1;
-        yShift = (r2 - 0.5) * p.baselineShift * 2;
-        xShift = (r3 - 0.5) * p.xDrift * 2 - (p.connectedness * 0.5);
-        scale = 1 + (r4 - 0.5) * p.sizeVariation * 2;
-        opacity = 1 - (r5 * p.pressure);
+      // Ink pressure / pooling effect using text-shadow
+      let textShadow = 'none';
+      if (strokeW > 1) {
+        const sw = (strokeW - 1) * 0.18 * intensity;
+        textShadow = `${sw * 0.4}px ${sw * 0.3}px 0.05px currentColor`;
       } else {
-        // Generic intensity-based
-        rotation = (r1 - 0.5) * 6 * intensity;
-        yShift = (r2 - 0.5) * 3 * intensity;
-        xShift = (r3 - 0.5) * 1.5 * intensity;
-        scale = 1 + (r4 - 0.5) * 0.15 * intensity;
-        opacity = 1 - (r5 * 0.15 * intensity);
+        // Very subtle blur to simulate ink bleeding slightly
+        textShadow = `0 0 0.1px currentColor`;
       }
 
-      return (
-        <span key={i} style={{
-          display: 'inline-block',
-          transform: `rotate(${rotation}deg) translate(${xShift}px, ${yShift}px) scale(${scale}) skewX(${globalSlant * 0.3}deg)`,
-          opacity: Math.max(0.6, opacity),
-          transition: 'none',
-          marginRight: p ? `${-p.connectedness * 0.5}px` : undefined,
-        }}>{char}</span>
+      const wordElements = [];
+
+      for (let wi = 0; wi < words.length; wi++) {
+        const word = words[wi];
+        
+        // Add spaces between words
+        if (wi > 0) {
+          const spaceRng = getSeededRandom(`space-${li}-${wi}`);
+          const spaceVariation = spaceRng() * 4 - 2; // -2px to +2px space variation
+          const extraSpace = rhythmParam * 3 * spaceVariation * intensity;
+          wordElements.push(
+            <span key={`sp-${li}-${wi}`} style={{
+              display: 'inline',
+              wordSpacing: `${extraSpace}px`,
+            }}>{' '}</span>
+          );
+        }
+
+        if (!word) continue;
+
+        // Word-level transformations (shared by all characters in the word)
+        const wordRng = getSeededRandom(`word-${li}-${wi}-${word}`);
+        const wordYShift = (wordRng() - 0.5) * (baselineShiftParam * 0.8 * intensity);
+        const wordRotation = (wordRng() - 0.5) * (rotationParam * 0.3 * intensity);
+        const wordOpacity = 1 - wordRng() * (pressureParam * 0.15 * intensity);
+        const extraWordSpacing = (wordRng() - 0.5) * (xDriftParam * 1.5 * intensity);
+        
+        // Shape deformation at word level
+        const wordScaleX = 1 + (wordRng() - 0.5) * (sizeVarParam * 0.8 * intensity);
+        const wordScaleY = 1 + (wordRng() - 0.5) * (sizeVarParam * 0.8 * intensity);
+        const wordSkewX = (wordRng() - 0.5) * (rotationParam * 0.5 * intensity);
+
+        if (isCursive) {
+          // CURSIVE MODE: Render the entire word as a single block to keep connections
+          wordElements.push(
+            <span key={`w-${li}-${wi}`} style={{
+              display: 'inline-block',
+              transform: `translateY(${wordYShift}px) rotate(${wordRotation}deg) scale(${wordScaleX}, ${wordScaleY}) skewX(${wordSkewX}deg)`,
+              transformOrigin: 'center bottom',
+              opacity: wordOpacity,
+              textShadow,
+              marginRight: `${extraWordSpacing}px`,
+            }}>
+              {word}
+            </span>
+          );
+        } else {
+          // PRINT MODE: Render letter-by-letter with micro-variations
+          const charElements = word.split('').map((char, ci) => {
+            const charRng = getSeededRandom(`char-${li}-${wi}-${ci}-${char}`);
+            
+            // Micro-variations per character
+            const charYShift = (charRng() - 0.5) * (baselineShiftParam * 0.7 * intensity);
+            const charRotation = (charRng() - 0.5) * (rotationParam * 0.8 * intensity);
+            
+            // Character-level unique deformation
+            const charScaleX = 1 + (charRng() - 0.5) * (sizeVarParam * 1.6 * intensity); // stretch/squeeze width
+            const charScaleY = 1 + (charRng() - 0.5) * (sizeVarParam * 1.6 * intensity); // stretch/squeeze height
+            const charSkewX = (charRng() - 0.5) * (rotationParam * 0.8 * intensity);    // unique shear
+            
+            const charOpacity = 1 - charRng() * (pressureParam * 0.12 * intensity);
+            // Character spacing (kerning jitter)
+            const charSpacing = letterGapParam + (charRng() - 0.5) * (xDriftParam * 1.8 * intensity);
+
+            return (
+              <span key={ci} style={{
+                display: 'inline-block',
+                transform: `translateY(${charYShift}px) rotate(${charRotation}deg) scale(${charScaleX}, ${charScaleY}) skewX(${charSkewX}deg)`,
+                transformOrigin: 'center bottom',
+                opacity: charOpacity,
+                marginRight: `${charSpacing}px`,
+              }}>
+                {char}
+              </span>
+            );
+          });
+
+          wordElements.push(
+            <span key={`w-${li}-${wi}`} style={{
+              display: 'inline-block',
+              transform: `translateY(${wordYShift}px) rotate(${wordRotation}deg)`,
+              textShadow,
+              marginRight: `${extraWordSpacing}px`,
+            }}>
+              {charElements}
+            </span>
+          );
+        }
+      }
+
+      elements.push(
+        <div key={`line-${li}`} style={{
+          display: 'block',
+          transform: `translateY(${lineDrift}px) rotate(${lineRot}deg)`,
+          transformOrigin: 'left center',
+          marginLeft: `${lineMarginShift}px`,
+          minHeight: `${fontSize * lineHeight}px`,
+        }}>
+          {wordElements}
+        </div>
       );
-    });
+    }
+
+    return elements;
   };
 
   /* ── Render Grid / Dot Lines ─────────────────────────────── */
@@ -764,6 +933,35 @@ export default function Transformation() {
   // ════════════════════════════════════════════════════════════
   return (
     <div className="page-wrapper">
+      {/* SVG filter for natural ink appearance */}
+      <svg style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none' }}>
+        <defs>
+          <filter id="natural-ink-filter">
+            {/* Hand tremor / high-frequency noise */}
+            <feTurbulence type="fractalNoise" baseFrequency="0.12" numOctaves="2" result="tremor" />
+            {/* Paper fiber bleed / low-frequency noise */}
+            <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" result="bleed" />
+            {/* Blend tremor and bleed */}
+            <feBlend in="tremor" in2="bleed" mode="multiply" result="mixedNoise" />
+            
+            <feDisplacementMap 
+              in="SourceGraphic" 
+              in2="mixedNoise" 
+              scale={Math.max(0.6, Math.min(3.0, (fontSize / 22) * 1.5 * (variationIntensity / 100)))} 
+              xChannelSelector="R" 
+              yChannelSelector="G" 
+              result="displaced" 
+            />
+            <feGaussianBlur in="displaced" stdDeviation={0.35 * (variationIntensity / 100)} result="blurred" />
+            <feComponentTransfer in="blurred" result="finalInk">
+              <feFuncA type="linear" slope="2.2" intercept="-0.6" />
+            </feComponentTransfer>
+            <feMerge>
+              <feMergeNode in="finalInk" />
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
       <Navbar />
       <div style={styles.layout}>
         <Sidebar />
@@ -835,13 +1033,36 @@ export default function Transformation() {
             {tab === 'upload' && (
               <div>
                 <FileUploader onFileSelect={handleFileSelect} />
-                {file && uploadedFileId && (
+                {loading && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '16px 20px', marginTop: '12px',
+                    background: 'rgba(99,102,241,0.08)',
+                    border: '1px solid rgba(99,102,241,0.2)',
+                    borderRadius: 'var(--radius-lg)',
+                  }}>
+                    <RefreshCw size={18} style={{ color: 'var(--accent-primary)', animation: 'spin 1s linear infinite' }} />
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0 }}>
+                        Processing file…
+                      </p>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                        {file?.name?.endsWith('.pdf')
+                          ? 'Running OCR on PDF pages — this may take 15-30 seconds for handwritten documents'
+                          : 'Extracting text content from the uploaded file'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {file && uploadedFileId && !loading && (
                   <div style={styles.uploadedInfo}>
                     <div style={styles.uploadedBadge}>
                       <Check size={14} style={{ color: 'var(--accent-green)' }} />
                       <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{file.name}</span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                        — Text extracted ({textContent.length} chars)
+                        — {textContent.startsWith('[') && textContent.endsWith(']')
+                          ? 'OCR notice (see below)'
+                          : `Text extracted (${textContent.length} chars)`}
                       </span>
                     </div>
                     <button onClick={downloadOriginal} className="btn btn-secondary btn-sm" style={{ flexShrink: 0 }}>
@@ -849,35 +1070,245 @@ export default function Transformation() {
                     </button>
                   </div>
                 )}
+                {file && uploadedFileId && !loading && textContent && textContent.startsWith('[') && textContent.endsWith(']') && (
+                  <div style={{
+                    padding: '12px 16px', marginTop: '8px',
+                    background: 'rgba(245,158,11,0.08)',
+                    border: '1px solid rgba(245,158,11,0.2)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.82rem', color: 'var(--text-secondary)',
+                  }}>
+                    ⚠️ {textContent.slice(1, -1)}
+                  </div>
+                )}
                 <p style={styles.formatHint}>
                   Supports: <strong>PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, JPG, JPEG, PNG, TXT</strong> — Max 250MB
+                  <br />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    📝 Handwritten PDFs and images are processed with OCR (Tesseract) for text extraction
+                  </span>
                 </p>
               </div>
             )}
 
             {tab === 'text' && (
               <div>
+                {/* ── Your Handwriting Style ───────────────────── */}
+                <div style={styles.quickStylePanel}>
+                  <div style={styles.quickStyleHeader}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={16} style={{ color: 'var(--accent-gold)' }} />
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Your Handwriting Style</span>
+                    </div>
+                    {activeStyle && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 600 }}>
+                        ✓ {activeStyle.name} ({activeStyle.font_match})
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Upload new style */}
+                  <div style={{
+                    display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap',
+                    padding: '10px 0',
+                  }}>
+                    <label style={{
+                      flex: 1, minWidth: '180px',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '10px 14px',
+                      background: 'var(--bg-glass)',
+                      border: '1px dashed var(--border-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      color: styleFile ? 'var(--accent-green)' : 'var(--text-muted)',
+                      transition: 'all 0.2s',
+                    }}>
+                      <Upload size={16} />
+                      {styleFile ? styleFile.name : 'Upload handwriting sample (JPG/PNG/PDF)'}
+                      <input type="file" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp,.pdf"
+                        onChange={(e) => setStyleFile(e.target.files[0] || null)}
+                        style={{ display: 'none' }} />
+                    </label>
+                    <input
+                      value={styleName}
+                      onChange={(e) => setStyleName(e.target.value)}
+                      placeholder="Style name (optional)"
+                      className="input-field"
+                      style={{ width: '150px', fontSize: '0.82rem' }}
+                    />
+                    <button
+                      onClick={uploadNewStyle}
+                      disabled={!styleFile || analyzingStyle}
+                      className="btn btn-primary btn-sm"
+                      style={{ flexShrink: 0 }}
+                    >
+                      {analyzingStyle ? (
+                        <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Analyzing...</>
+                      ) : (
+                        <><Wand2 size={14} /> Analyze & Save</>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Saved styles list */}
+                  {savedStyles.length > 0 && (
+                    <div style={styles.quickStyleChips}>
+                      {savedStyles.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => applyCustomStyle(s)}
+                          style={{
+                            ...styles.quickStyleChip,
+                            borderColor: activeStyle?.id === s.id ? 'var(--accent-gold)' : 'var(--border-subtle)',
+                            background: activeStyle?.id === s.id
+                              ? 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,180,0,0.08))'
+                              : 'var(--bg-glass)',
+                            boxShadow: activeStyle?.id === s.id
+                              ? '0 0 12px rgba(255,215,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05)'
+                              : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                            flexDirection: 'column',
+                            alignItems: 'stretch',
+                            padding: '10px 14px',
+                            minWidth: '150px',
+                            position: 'relative',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '1.15rem' }}>✍️</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1px', flex: 1 }}>
+                              <span style={{
+                                fontWeight: 700, fontSize: '0.78rem',
+                                color: activeStyle?.id === s.id ? 'var(--accent-gold)' : 'var(--text-primary)',
+                              }}>
+                                {s.name}
+                              </span>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                {s.font_match}
+                              </span>
+                            </div>
+                            {activeStyle?.id === s.id && (
+                              <Check size={14} style={{ color: 'var(--accent-gold)', flexShrink: 0 }} />
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteCustomStyle(s.id); }}
+                              style={{
+                                background: 'none', border: 'none', color: 'var(--text-muted)',
+                                cursor: 'pointer', padding: '2px', fontSize: '0.7rem',
+                                opacity: 0.5, transition: 'opacity 0.2s',
+                              }}
+                              title="Delete style"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                          {/* Font preview */}
+                          <div style={{
+                            fontFamily: `'${s.font_match}', cursive`,
+                            fontSize: '1.05rem',
+                            color: s.ink_color || '#1a1a2e',
+                            lineHeight: 1.4,
+                            marginTop: '6px',
+                            padding: '6px 8px',
+                            background: 'rgba(255,255,255,0.92)',
+                            borderRadius: '6px',
+                            textAlign: 'left',
+                          }}>
+                            Hello world
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {savedStyles.length === 0 && !styleFile && (
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '8px 0 0', textAlign: 'center' }}>
+                      Upload a sample of your handwriting to get started — the system will analyze your style and match it
+                    </p>
+                  )}
+
+                  {/* Quick controls row */}
+                  <div style={styles.quickControlsRow}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>Size:</span>
+                      <button onClick={() => setFontSize(s => Math.max(14, s - 2))} style={styles.quickSizeBtn}>A−</button>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, minWidth: '32px', textAlign: 'center' }}>{fontSize}px</span>
+                      <button onClick={() => setFontSize(s => Math.min(48, s + 2))} style={styles.quickSizeBtn}>A+</button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>Ink:</span>
+                      {[
+                        { color: '#1e293b', label: 'Navy' },
+                        { color: '#1a3a8a', label: 'Royal Blue' },
+                        { color: '#222222', label: 'Black' },
+                        { color: '#0d4f2b', label: 'Emerald' },
+                        { color: '#4a1942', label: 'Purple' },
+                        { color: '#8b0000', label: 'Crimson' },
+                      ].map(ink => (
+                        <button
+                          key={ink.color}
+                          title={ink.label}
+                          onClick={() => setFontColor(ink.color)}
+                          style={{
+                            ...styles.quickInkDot,
+                            background: ink.color,
+                            boxShadow: fontColor === ink.color
+                              ? `0 0 0 2px var(--bg-card), 0 0 0 4px var(--accent-gold)`
+                              : 'none',
+                            transform: fontColor === ink.color ? 'scale(1.2)' : 'scale(1)',
+                          }}
+                        />
+                      ))}
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="color"
+                          value={fontColor}
+                          onChange={(e) => setFontColor(e.target.value)}
+                          title="Custom color"
+                          style={styles.quickColorInput}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Styled Textarea ──────────────────────────── */}
                 <textarea
                   id="text-input"
                   value={textContent}
                   onChange={(e) => setTextContent(e.target.value)}
-                  placeholder="Paste or type your text here…"
+                  placeholder="Start typing in your chosen handwriting style…"
                   className="input-field"
                   style={{
-                    minHeight: '200px',
+                    minHeight: '240px',
                     resize: 'vertical',
                     fontFamily: `'${selectedFont}', cursive`,
                     fontSize: `${Math.max(fontSize, 18)}px`,
-                    lineHeight: 1.8,
-                    color: fontColor !== '#1a1a2e' ? fontColor : undefined,
+                    lineHeight: lineHeight,
+                    letterSpacing: `${letterSpacing}px`,
+                    wordSpacing: `${wordSpacing}px`,
+                    color: fontColor,
+                    transform: textTilt ? `rotate(${textTilt * 0.3}deg)` : 'none',
+                    transformOrigin: 'top left',
+                    transition: 'font-family 0.3s ease, color 0.2s ease, font-size 0.2s ease',
                   }}
                 />
-                <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '12px', alignItems: 'center' }}>
                   <button onClick={handleTextSubmit} className="btn btn-primary" disabled={loading}>
                     <FileText size={16} /> Save Text
                   </button>
+                  {activeStyle && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      fontSize: '0.78rem', color: 'var(--accent-gold)',
+                      background: 'rgba(255,215,0,0.08)', padding: '4px 12px',
+                      borderRadius: 'var(--radius-full)', border: '1px solid rgba(255,215,0,0.2)',
+                    }}>
+                      <PenTool size={12} /> Writing in: {activeStyle.name}
+                    </span>
+                  )}
                   {textContent && (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', alignSelf: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', alignSelf: 'center', marginLeft: 'auto' }}>
                       {textContent.length} characters
                     </span>
                   )}
@@ -887,28 +1318,72 @@ export default function Transformation() {
 
             {tab === 'voice' && (
               <div style={styles.voicePanel}>
-                <button
-                  id="voice-record-btn"
-                  onClick={toggleRecording}
-                  style={{
-                    ...styles.micBtn,
-                    background: isRecording
-                      ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                      : 'var(--gradient-gold)',
-                    animation: isRecording ? 'pulse 1.5s infinite' : 'none',
-                  }}
-                >
-                  {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
-                </button>
-                <p style={{ color: 'var(--text-secondary)', marginTop: '12px' }}>
-                  {isRecording ? '🔴 Listening… Click to stop' : 'Click to start recording'}
+                {/* Mic button */}
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  {isRecording && (
+                    <div style={{
+                      position: 'absolute', inset: '-8px', borderRadius: '50%',
+                      border: '3px solid rgba(239,68,68,0.4)',
+                      animation: 'pulse 1.5s infinite',
+                    }} />
+                  )}
+                  <button
+                    id="voice-record-btn"
+                    onClick={toggleRecording}
+                    style={{
+                      ...styles.micBtn,
+                      background: isRecording
+                        ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                        : 'var(--gradient-gold)',
+                      animation: isRecording ? 'pulse 1.5s infinite' : 'none',
+                    }}
+                  >
+                    {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
+                  </button>
+                </div>
+
+                {/* Status message */}
+                <p style={{
+                  color: isRecording ? '#ef4444' : 'var(--text-secondary)',
+                  marginTop: '16px', fontSize: '0.95rem', fontWeight: isRecording ? 600 : 400,
+                  minHeight: '24px',
+                }}>
+                  {voiceStatus || (isRecording ? '🔴 Listening… Click to stop' : 'Click the mic to start speaking')}
                 </p>
-                {textContent && (
-                  <div style={styles.transcriptBox}>
-                    <p style={{ fontWeight: 600, marginBottom: '8px' }}>Transcription:</p>
-                    <p style={{ color: 'var(--text-secondary)' }}>{textContent}</p>
+
+                {/* HTTPS info */}
+                {typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px', padding: '8px 12px', background: 'rgba(255,200,0,0.08)', borderRadius: '8px', border: '1px solid rgba(255,200,0,0.15)' }}>
+                    ⚠️ Speech recognition works best on HTTPS or localhost
+                  </p>
+                )}
+
+                {/* Interim text (live preview of what's being heard) */}
+                {interimText && (
+                  <div style={{
+                    marginTop: '16px', padding: '12px 16px',
+                    background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--radius-md)',
+                    border: '1px solid rgba(239,68,68,0.15)', textAlign: 'left',
+                  }}>
+                    <p style={{ fontWeight: 600, marginBottom: '4px', fontSize: '0.82rem', color: '#ef4444' }}>👂 Hearing...</p>
+                    <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.9rem' }}>{interimText}</p>
                   </div>
                 )}
+
+                {/* Final transcript */}
+                {textContent && (
+                  <div style={styles.transcriptBox}>
+                    <p style={{ fontWeight: 600, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FileText size={14} /> Transcription:
+                    </p>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>{textContent}</p>
+                  </div>
+                )}
+
+                {/* Browser support note */}
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '16px' }}>
+                  Best supported in Google Chrome and Microsoft Edge. Requires microphone permission.
+                </p>
               </div>
             )}
 
@@ -954,190 +1429,106 @@ export default function Transformation() {
                 {transformMode === 'ai_to_handwriting' ? 'Handwriting Style' : 'AI Output Settings'}
               </h3>
 
-              {/* ── Style Picker Tabs ─────────────────────── */}
+              {/* ── Your Saved Styles ───────────────────── */}
               {transformMode === 'ai_to_handwriting' && (
                 <>
-                  {/* Tab bar: Trained | Fonts | Random */}
-                  <div style={styles.styleTabs}>
-                    {[
-                      { id: 'trained', label: 'Trained Styles', icon: Sparkles },
-                      { id: 'fonts', label: 'Font Library', icon: Type },
-                      { id: 'random', label: 'Random Generate', icon: Dices },
-                    ].map(t => (
-                      <button
-                        key={t.id}
-                        onClick={() => setStyleTab(t.id)}
-                        style={{
-                          ...styles.styleTabBtn,
-                          ...(styleTab === t.id ? styles.styleTabBtnActive : {}),
-                        }}
-                      >
-                        <t.icon size={14} /> {t.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* ── TAB: Trained Styles ─────────────────── */}
-                  {styleTab === 'trained' && (
-                    <div>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '14px' }}>
-                        5 handwriting profiles trained from real samples — click to apply
-                      </p>
-                      <div style={styles.trainedGrid}>
-                        {trainedStyles.map(s => (
-                          <button
-                            key={s.id}
-                            onClick={() => applyTrainedStyle(s)}
-                            style={{
-                              ...styles.trainedCard,
-                              borderColor: activeTrainedStyle?.id === s.id ? 'var(--accent-gold)' : 'var(--border-subtle)',
-                              background: activeTrainedStyle?.id === s.id ? 'rgba(255,215,0,0.08)' : 'var(--bg-glass)',
-                            }}
-                          >
-                            <div style={styles.trainedCardHeader}>
-                              <span style={{ fontSize: '1.4rem' }}>{s.emoji}</span>
-                              <div style={{ flex: 1, textAlign: 'left' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.88rem', display: 'block' }}>{s.name}</span>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.description}</span>
-                              </div>
-                              {activeTrainedStyle?.id === s.id && (
-                                <Check size={16} style={{ color: 'var(--accent-gold)' }} />
-                              )}
-                            </div>
-                            <div style={{
-                              fontFamily: `'${s.font}', cursive`,
-                              fontSize: '1.15rem',
-                              color: s.inkColor,
-                              lineHeight: 1.5,
-                              padding: '10px 0 4px',
-                              textAlign: 'left',
-                              fontStyle: s.params.slant > 3 ? 'italic' : 'normal',
-                            }}>
-                              The quick brown fox jumps
-                            </div>
-                            <div style={styles.trainedParams}>
-                              <span>Tilt: {s.params.rotation.toFixed(1)}°</span>
-                              <span>Flow: {Math.round(s.params.connectedness * 100)}%</span>
-                              <span>Pressure: {Math.round((1 - s.params.pressure) * 100)}%</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>Your Saved Styles</span>
+                      <label style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '6px 12px',
+                        background: 'rgba(99,140,255,0.1)',
+                        border: '1px solid rgba(99,140,255,0.2)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer', fontSize: '0.78rem', color: 'var(--accent-blue)',
+                      }}>
+                        <Upload size={14} /> Upload New Style
+                        <input type="file" accept=".jpg,.jpeg,.png,.bmp,.pdf"
+                          onChange={async (e) => {
+                            const f = e.target.files[0];
+                            if (!f) return;
+                            setAnalyzingStyle(true);
+                            try {
+                              const formData = new FormData();
+                              formData.append('file', f);
+                              const res = await api.post('/styles/upload', formData, {
+                                headers: { 'Content-Type': 'multipart/form-data' },
+                              });
+                              addToast(`Style "${res.data.style.name}" saved! ✨`, 'success');
+                              await fetchSavedStyles();
+                              applyCustomStyle(res.data.style);
+                            } catch (err) {
+                              addToast('Failed to analyze style', 'error');
+                            } finally {
+                              setAnalyzingStyle(false);
+                            }
+                          }}
+                          style={{ display: 'none' }} />
+                      </label>
                     </div>
-                  )}
 
-                  {/* ── TAB: Font Library ───────────────────── */}
-                  {styleTab === 'fonts' && (
-                    <div>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '10px' }}>
-                        20 handwriting fonts — filter by category
+                    {analyzingStyle && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '12px', background: 'rgba(99,102,241,0.08)',
+                        border: '1px solid rgba(99,102,241,0.2)',
+                        borderRadius: 'var(--radius-md)', marginBottom: '12px',
+                      }}>
+                        <RefreshCw size={16} style={{ color: 'var(--accent-primary)', animation: 'spin 1s linear infinite' }} />
+                        <span style={{ fontSize: '0.85rem' }}>Analyzing your handwriting style...</span>
+                      </div>
+                    )}
+
+                    {savedStyles.length === 0 && !analyzingStyle && (
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
+                        No styles saved yet. Upload a sample of your handwriting to get started.
                       </p>
-                      {/* Category filter */}
-                      <div style={styles.categoryFilter}>
-                        {fontCategories.map(c => (
-                          <button
-                            key={c.id}
-                            onClick={() => setFontCategoryFilter(c.id)}
-                            style={{
-                              ...styles.categoryBtn,
-                              ...(fontCategoryFilter === c.id ? styles.categoryBtnActive : {}),
-                            }}
-                          >
-                            {c.label}
-                          </button>
-                        ))}
-                      </div>
-                      <div style={styles.fontGrid}>
-                        {filteredFonts.map(f => (
-                          <button
-                            key={f.name}
-                            onClick={() => { setSelectedFont(f.name); setActiveTrainedStyle(null); }}
-                            onMouseEnter={() => setFontPreview(f.name)}
-                            onMouseLeave={() => setFontPreview(null)}
-                            style={{
-                              ...styles.fontCard,
-                              borderColor: selectedFont === f.name && !activeTrainedStyle
-                                ? 'var(--accent-gold)' : 'var(--border-subtle)',
-                              background: selectedFont === f.name && !activeTrainedStyle
-                                ? 'rgba(255,215,0,0.06)' : 'var(--bg-glass)',
-                            }}
-                          >
-                            <span style={{
-                              fontFamily: `'${f.name}', cursive`,
-                              fontSize: '1.3rem', color: 'var(--text-primary)', lineHeight: 1.3,
-                            }}>
-                              The quick brown fox
-                            </span>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                              {f.label}
-                            </span>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {f.style}
-                            </span>
-                            {selectedFont === f.name && !activeTrainedStyle && (
-                              <div style={styles.fontCheck}><Check size={14} /></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      {fontPreview && fontPreview !== selectedFont && (
-                        <div style={{ ...styles.fontPreviewBox, fontFamily: `'${fontPreview}', cursive` }}>
-                          <Eye size={14} style={{ flexShrink: 0 }} />
-                          <span>Preview: "Hello, this is how your text will look in {fontPreview}!"</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    )}
 
-                  {/* ── TAB: Random Generate ────────────────── */}
-                  {styleTab === 'random' && (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0 }}>
-                          AI-generated unique handwriting styles
-                        </p>
-                        <button onClick={generateNewRandomStyles} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Shuffle size={14} /> Generate New
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {savedStyles.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => applyCustomStyle(s)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '12px',
+                            padding: '12px 14px', width: '100%',
+                            background: activeStyle?.id === s.id ? 'rgba(255,215,0,0.08)' : 'var(--bg-glass)',
+                            border: `1px solid ${activeStyle?.id === s.id ? 'var(--accent-gold)' : 'var(--border-subtle)'}`,
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer', color: 'var(--text-primary)',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          <span style={{ fontSize: '1.2rem' }}>✍️</span>
+                          <div style={{ flex: 1, textAlign: 'left' }}>
+                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>{s.name}</p>
+                            <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              Font: {s.font_match} · Slant: {s.params?.slant || 0}°
+                            </p>
+                          </div>
+                          <div style={{
+                            fontFamily: `'${s.font_match}', cursive`,
+                            fontSize: '0.95rem', color: s.ink_color || '#1a1a2e',
+                            background: 'rgba(255,255,255,0.9)',
+                            padding: '4px 10px', borderRadius: '4px',
+                          }}>
+                            Sample
+                          </div>
+                          {activeStyle?.id === s.id && (
+                            <Check size={16} style={{ color: 'var(--accent-gold)' }} />
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteCustomStyle(s.id); }}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                          >
+                            <X size={14} />
+                          </button>
                         </button>
-                      </div>
-                      <div style={styles.trainedGrid}>
-                        {randomStyles.map(s => (
-                          <button
-                            key={s.id}
-                            onClick={() => applyTrainedStyle(s)}
-                            style={{
-                              ...styles.trainedCard,
-                              borderColor: activeTrainedStyle?.id === s.id ? 'var(--accent-gold)' : 'var(--border-subtle)',
-                              background: activeTrainedStyle?.id === s.id ? 'rgba(255,215,0,0.08)' : 'var(--bg-glass)',
-                            }}
-                          >
-                            <div style={styles.trainedCardHeader}>
-                              <span style={{ fontSize: '1.4rem' }}>{s.emoji}</span>
-                              <div style={{ flex: 1, textAlign: 'left' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.88rem', display: 'block' }}>{s.name}</span>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.description}</span>
-                              </div>
-                              {activeTrainedStyle?.id === s.id && (
-                                <Check size={16} style={{ color: 'var(--accent-gold)' }} />
-                              )}
-                            </div>
-                            <div style={{
-                              fontFamily: `'${s.font}', cursive`,
-                              fontSize: '1.15rem', color: s.inkColor,
-                              lineHeight: 1.5, padding: '10px 0 4px', textAlign: 'left',
-                            }}>
-                              The quick brown fox jumps
-                            </div>
-                            <div style={styles.trainedParams}>
-                              <span>Font: {s.font}</span>
-                              <span>Tilt: {s.params.rotation.toFixed(1)}°</span>
-                              <span>Wobble: {s.params.baselineShift.toFixed(1)}px</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
 
                   {/* ── Customization Controls ─────────────── */}
                   <div style={styles.controls}>
@@ -1448,18 +1839,33 @@ export default function Transformation() {
                   fontFamily: `'${selectedFont}', cursive`,
                   fontSize: `${fontSize}px`,
                   color: fontColor,
-                  background: bgColor,
+                  background: `linear-gradient(to right, rgba(0,0,0,0.04) 0%, rgba(255,255,255,0) 4%, rgba(255,255,255,0) 96%, rgba(0,0,0,0.03) 100%), ${bgColor}`,
                   lineHeight: lineHeight,
                   letterSpacing: `${letterSpacing}px`,
                   wordSpacing: `${wordSpacing}px`,
                   transform: textTilt ? `rotate(${textTilt}deg)` : 'none',
                 }}>
+                  {/* Real paper texture overlay */}
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0.05,
+                    pointerEvents: 'none',
+                    mixBlendMode: 'multiply',
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+                    zIndex: 0,
+                  }} />
                   {renderBackgroundPattern()}
                   {showMargin && lineType === 'ruled' && <div style={styles.marginLine} />}
                   <div style={{
                     ...styles.previewContent,
                     paddingLeft: showMargin && lineType === 'ruled' ? '15px' : '0',
                     pointerEvents: 'none',
+                    // Global slant applied to ALL text (much more natural than per-char skew)
+                    transform: activeStyle?.params?.slant ? `skewX(${activeStyle.params.slant * 0.3}deg)` : 'none',
+                    // High-quality SVG displacement filter for hand tremor + ink absorption simulation
+                    filter: 'url(#natural-ink-filter) contrast(1.02) saturate(1.05)',
+                    WebkitFontSmoothing: 'antialiased',
                   }}>
                     {renderHumanizedText(getPlainText(transformedText || editorContent || textContent) || ' ')}
                   </div>
@@ -1827,5 +2233,68 @@ const styles = {
   trainedParams: {
     display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '6px',
     fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: "'Inter', sans-serif",
+  },
+
+  /* ── Quick Style Selector Panel ────────────────────────── */
+  quickStylePanel: {
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,215,0,0.03) 100%)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255,215,0,0.12)',
+    borderRadius: 'var(--radius-lg)',
+    padding: '18px 20px',
+    marginBottom: '16px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  quickStyleHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: '14px', flexWrap: 'wrap', gap: '6px',
+  },
+  quickStyleChips: {
+    display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px',
+  },
+  quickStyleChip: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    padding: '8px 14px', borderRadius: 'var(--radius-full)',
+    border: '1.5px solid var(--border-subtle)',
+    cursor: 'pointer', transition: 'all 0.25s ease',
+    fontSize: '0.82rem', whiteSpace: 'nowrap',
+  },
+  customBadge: {
+    display: 'inline-block',
+    marginLeft: '6px',
+    padding: '1px 6px',
+    borderRadius: '4px',
+    background: 'linear-gradient(135deg, #ffd700, #ffb700)',
+    color: '#000',
+    fontSize: '0.55rem',
+    fontWeight: 800,
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    verticalAlign: 'middle',
+  },
+  quickControlsRow: {
+    display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
+    paddingTop: '12px',
+    borderTop: '1px solid rgba(255,255,255,0.05)',
+  },
+  quickSizeBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: '30px', height: '28px', borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--border-subtle)', background: 'var(--bg-glass)',
+    color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: 700,
+    cursor: 'pointer', transition: 'all 0.15s',
+  },
+  quickInkDot: {
+    width: '20px', height: '20px', borderRadius: '50%',
+    border: '2px solid rgba(255,255,255,0.1)',
+    cursor: 'pointer', transition: 'all 0.2s ease',
+    flexShrink: 0,
+  },
+  quickColorInput: {
+    width: '22px', height: '22px', borderRadius: '50%',
+    border: '2px dashed rgba(255,255,255,0.2)',
+    cursor: 'pointer', padding: 0, background: 'none',
+    opacity: 0.7,
   },
 };
