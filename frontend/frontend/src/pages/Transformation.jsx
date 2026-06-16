@@ -8,7 +8,7 @@ import RichTextEditor from '../components/RichTextEditor';
 import {
   Upload, Mic, MicOff, Camera, CameraOff, PenTool, Download,
   Share2, FileText, Wand2, RefreshCw, Type, Zap, ArrowRightLeft,
-  Eye, Palette, LayoutGrid, AlignLeft, Sparkles, RotateCcw,
+  Eye, Palette, LayoutGrid, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, RotateCcw,
   ChevronDown, ChevronUp, Sliders, Image, Check, X, Copy, Filter
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -72,6 +72,7 @@ export default function Transformation() {
   const [letterSpacing, setLetterSpacing] = useState(0);
   const [wordSpacing, setWordSpacing] = useState(0);
   const [textTilt, setTextTilt] = useState(0);
+  const [textAlignment, setTextAlignment] = useState('left'); // 'left' | 'center' | 'right' | 'justify'
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   /* ── Humanization Engine ────────────────────────────────── */
@@ -867,6 +868,8 @@ export default function Transformation() {
       elements.push(
         <div key={`line-${li}`} style={{
           display: 'block',
+          textAlign: textAlignment,
+          textAlignLast: textAlignment === 'justify' ? 'justify' : 'auto',
           transform: `translateY(${lineDrift}px) rotate(${lineRot}deg)`,
           transformOrigin: 'left center',
           marginLeft: `${lineMarginShift}px`,
@@ -1559,6 +1562,38 @@ export default function Transformation() {
                         onChange={(e) => setLetterSpacing(Number(e.target.value))}
                         style={styles.range} />
                     </div>
+                    <div style={styles.controlGroup}>
+                      <label style={styles.controlLabel}>Text Alignment</label>
+                      <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.25)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
+                        {[
+                          { id: 'left', icon: AlignLeft, label: 'Left' },
+                          { id: 'center', icon: AlignCenter, label: 'Center' },
+                          { id: 'right', icon: AlignRight, label: 'Right' },
+                          { id: 'justify', icon: AlignJustify, label: 'Justify' },
+                        ].map(align => (
+                          <button
+                            key={align.id}
+                            title={align.label}
+                            onClick={() => setTextAlignment(align.id)}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '8px',
+                              background: textAlignment === align.id ? 'var(--accent-gold)' : 'transparent',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              color: textAlignment === align.id ? '#000' : 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <align.icon size={15} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   {/* ── Humanization Controls ──────────────── */}
@@ -1810,7 +1845,7 @@ export default function Transformation() {
                   <PenTool size={18} />
                   Live Handwriting Preview
                   <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '8px' }}>
-                    — type directly here to edit
+                    — real-time rendered output (edit text in the "Edit Content" section above)
                   </span>
                 </h3>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -1831,65 +1866,42 @@ export default function Transformation() {
                 </div>
               </div>
 
-              {/* Paper with transparent textarea overlay */}
-              <div style={{ position: 'relative' }}>
-                {/* ── Styled output layer (visible) ─────────── */}
-                <div ref={previewRef} style={{
-                  ...styles.previewPaper,
-                  fontFamily: `'${selectedFont}', cursive`,
-                  fontSize: `${fontSize}px`,
-                  color: fontColor,
-                  background: `linear-gradient(to right, rgba(0,0,0,0.04) 0%, rgba(255,255,255,0) 4%, rgba(255,255,255,0) 96%, rgba(0,0,0,0.03) 100%), ${bgColor}`,
-                  lineHeight: lineHeight,
-                  letterSpacing: `${letterSpacing}px`,
-                  wordSpacing: `${wordSpacing}px`,
-                  transform: textTilt ? `rotate(${textTilt}deg)` : 'none',
+              {/* Paper Preview Sheet */}
+              <div ref={previewRef} style={{
+                ...styles.previewPaper,
+                fontFamily: `'${selectedFont}', cursive`,
+                fontSize: `${fontSize}px`,
+                color: fontColor,
+                background: `linear-gradient(to right, rgba(0,0,0,0.04) 0%, rgba(255,255,255,0) 4%, rgba(255,255,255,0) 96%, rgba(0,0,0,0.03) 100%), ${bgColor}`,
+                lineHeight: lineHeight,
+                letterSpacing: `${letterSpacing}px`,
+                wordSpacing: `${wordSpacing}px`,
+                transform: textTilt ? `rotate(${textTilt}deg)` : 'none',
+              }}>
+                {/* Real paper texture overlay */}
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  opacity: 0.05,
+                  pointerEvents: 'none',
+                  mixBlendMode: 'multiply',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+                  zIndex: 0,
+                }} />
+                {renderBackgroundPattern()}
+                {showMargin && lineType === 'ruled' && <div style={styles.marginLine} />}
+                <div style={{
+                  ...styles.previewContent,
+                  paddingLeft: showMargin && lineType === 'ruled' ? '15px' : '0',
+                  pointerEvents: 'none',
+                  // Global slant applied to ALL text (much more natural than per-char skew)
+                  transform: activeStyle?.params?.slant ? `skewX(${activeStyle.params.slant * 0.3}deg)` : 'none',
+                  // High-quality SVG displacement filter for hand tremor + ink absorption simulation
+                  filter: 'url(#natural-ink-filter) contrast(1.02) saturate(1.05)',
+                  WebkitFontSmoothing: 'antialiased',
                 }}>
-                  {/* Real paper texture overlay */}
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    opacity: 0.05,
-                    pointerEvents: 'none',
-                    mixBlendMode: 'multiply',
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-                    zIndex: 0,
-                  }} />
-                  {renderBackgroundPattern()}
-                  {showMargin && lineType === 'ruled' && <div style={styles.marginLine} />}
-                  <div style={{
-                    ...styles.previewContent,
-                    paddingLeft: showMargin && lineType === 'ruled' ? '15px' : '0',
-                    pointerEvents: 'none',
-                    // Global slant applied to ALL text (much more natural than per-char skew)
-                    transform: activeStyle?.params?.slant ? `skewX(${activeStyle.params.slant * 0.3}deg)` : 'none',
-                    // High-quality SVG displacement filter for hand tremor + ink absorption simulation
-                    filter: 'url(#natural-ink-filter) contrast(1.02) saturate(1.05)',
-                    WebkitFontSmoothing: 'antialiased',
-                  }}>
-                    {renderHumanizedText(getPlainText(transformedText || editorContent || textContent) || ' ')}
-                  </div>
+                  {renderHumanizedText(getPlainText(transformedText || editorContent || textContent) || ' ')}
                 </div>
-
-                {/* ── Editable textarea overlay (invisible text) ── */}
-                <textarea
-                  value={getPlainText(transformedText || editorContent || textContent)}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setTextContent(val);
-                    setEditorContent(val);
-                    if (transformed) setTransformedText(val);
-                  }}
-                  style={{
-                    ...styles.previewOverlay,
-                    fontFamily: `'${selectedFont}', cursive`,
-                    fontSize: `${fontSize}px`,
-                    lineHeight: lineHeight,
-                    letterSpacing: `${letterSpacing}px`,
-                    wordSpacing: `${wordSpacing}px`,
-                  }}
-                  placeholder="Start typing here…"
-                />
               </div>
             </div>
           )}
