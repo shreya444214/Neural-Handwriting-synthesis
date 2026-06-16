@@ -41,6 +41,50 @@ const paperPresets = [
   { id: 'dot-white', label: 'Dot Grid', bg: '#ffffff', lines: 'dot', lineColor: 'rgba(0,0,0,0.15)', marginColor: '' },
 ];
 
+/* ── Pen Presets ────────────────────────────────────────── */
+const penPresets = [
+  { id: 'ballpoint-blue', label: '🔵 Ballpoint (Blue)', color: '#002fbe', stroke: 0.9, pressure: 0.12, letterGap: 0 },
+  { id: 'ballpoint-black', label: '⚫ Ballpoint (Black)', color: '#1a1a1a', stroke: 0.9, pressure: 0.12, letterGap: 0 },
+  { id: 'gel-blue', label: '🌀 Gel Pen (Blue)', color: '#004aa6', stroke: 1.25, pressure: 0.04, letterGap: -0.5 },
+  { id: 'gel-black', label: '🖋️ Gel Pen (Black)', color: '#090a0c', stroke: 1.3, pressure: 0.04, letterGap: -0.5 },
+  { id: 'gel-red', label: '🔴 Gel Pen (Red)', color: '#c00000', stroke: 1.2, pressure: 0.05, letterGap: -0.5 },
+  { id: 'gel-green', label: '🟢 Gel Pen (Green)', color: '#0c603a', stroke: 1.2, pressure: 0.05, letterGap: -0.5 },
+  { id: 'gel-orange', label: '🟠 Gel Pen (Orange)', color: '#d95d00', stroke: 1.2, pressure: 0.05, letterGap: -0.5 },
+  { id: 'fountain-blue', label: '✒️ Fountain Pen (Blue)', color: '#103070', stroke: 1.6, pressure: 0.20, letterGap: 0.5 },
+];
+
+/* ── Color Contrast Helper ──────────────────────────────── */
+const getLuminance = (colorStr) => {
+  if (!colorStr) return 0;
+  let r = 0, g = 0, b = 0;
+  const cleaned = colorStr.trim().toLowerCase();
+  
+  if (cleaned.startsWith('#')) {
+    let hex = cleaned.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(x => x + x).join('');
+    }
+    r = parseInt(hex.substring(0, 2), 16);
+    g = parseInt(hex.substring(2, 4), 16);
+    b = parseInt(hex.substring(4, 6), 16);
+  } else if (cleaned.startsWith('rgb')) {
+    const parts = cleaned.match(/\d+/g);
+    if (parts) {
+      r = parseInt(parts[0]);
+      g = parseInt(parts[1]);
+      b = parseInt(parts[2]);
+    }
+  } else {
+    return 0.5; // neutral fallback
+  }
+  
+  r /= 255; g /= 255; b /= 255;
+  const rc = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+  const gc = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+  const bc = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+  return 0.2126 * rc + 0.7152 * gc + 0.0722 * bc;
+};
+
 const bgColorOptions = [
   '#ffffff', '#fffef5', '#fef9c3', '#fce7f3', '#dbeafe',
   '#dcfce7', '#f5f3ff', '#fef2f2', '#ecfdf5', '#1a1a2e',
@@ -68,6 +112,8 @@ export default function Transformation() {
   const [selectedFont, setSelectedFont] = useState('Caveat');
   const [fontSize, setFontSize] = useState(22);
   const [fontColor, setFontColor] = useState('#1a1a2e');
+  const [activePen, setActivePen] = useState('gel-blue');
+  const selectedPenObj = useMemo(() => penPresets.find(pen => pen.id === activePen) || penPresets[2], [activePen]);
   const [lineHeight, setLineHeight] = useState(2.0);
   const [letterSpacing, setLetterSpacing] = useState(0);
   const [wordSpacing, setWordSpacing] = useState(0);
@@ -503,7 +549,7 @@ export default function Transformation() {
 
     setLoading(true);
     try {
-      if (transformMode === 'ai_to_handwriting') {
+      if (transformMode === 'ai_to_handwriting' || transformMode === 'handwriting_to_handwriting') {
         // Style it as handwriting visually — the text stays the same
         // but optionally we can humanize it too
         let resultText = content;
@@ -632,211 +678,149 @@ export default function Transformation() {
     }
   };
 
+  const getPlainText = (html) => {
+    if (!html) return '';
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    return tempDiv.textContent || tempDiv.innerText || '';
+  };
+
   const copyTransformed = () => {
     const text = getPlainText(transformedText || editorContent || textContent);
     navigator.clipboard.writeText(text);
     addToast('Copied to clipboard! 📋', 'success');
   };
 
-  /* ── Helpers ──────────────────────────────────────────────── */
-  const getPlainText = (html) => {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
-  };
+  const renderHTMLToHandwriting = (htmlString) => {
+    if (!htmlString) return ' ';
 
-  /* ── Auto-contrast: keep text visible on any background ─── */
-  const getLuminance = (hex) => {
-    const c = hex.replace('#', '');
-    const r = parseInt(c.substring(0, 2), 16) / 255;
-    const g = parseInt(c.substring(2, 4), 16) / 255;
-    const b = parseInt(c.substring(4, 6), 16) / 255;
-    const toLinear = (v) => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
-  };
-
-  const getContrastRatio = (c1, c2) => {
-    const l1 = getLuminance(c1);
-    const l2 = getLuminance(c2);
-    const lighter = Math.max(l1, l2);
-    const darker = Math.min(l1, l2);
-    return (lighter + 0.05) / (darker + 0.05);
-  };
-
-  // Auto-fix font color whenever background changes
-  useEffect(() => {
-    try {
-      const ratio = getContrastRatio(fontColor, bgColor);
-      if (ratio < 2.5) {
-        // Not enough contrast — pick a contrasting color
-        const bgLum = getLuminance(bgColor);
-        const newColor = bgLum > 0.5 ? '#1a1a2e' : '#e8e8e8';
-        setFontColor(newColor);
-      }
-    } catch {
-      // ignore invalid hex
-    }
-  }, [bgColor]);
-
-  /* ── Seeded Pseudo-Random Number Generator (PRNG) ── */
-  const getSeededRandom = (seedString) => {
-    let hash = 0;
-    for (let i = 0; i < seedString.length; i++) {
-      hash = seedString.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    let currentSeed = hash;
-    return () => {
-      const x = Math.sin(currentSeed++) * 10000;
-      return x - Math.floor(x);
-    };
-  };
-
-  /* ── Humanized Text Renderer (Natural Handwriting) ──────── */
-  const renderHumanizedText = (text, overrideParams = null, overrideFont = null) => {
-    if (!text) return ' ';
-    const p = overrideParams || activeStyle?.params || null;
-    const intensity = variationIntensity / 100;
+    // Parse the HTML string
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
     
-    // Fallback standard styling if humanize is disabled
-    if (!humanizeEnabled && !overrideParams) {
-      return text.split('\n').map((line, li) => (
-        <span key={`line-${li}`} style={{ display: 'block' }}>
-          {line || ' '}
-        </span>
-      ));
-    }
+    // Seeded Random helper
+    const getSeededRandom = (seedString) => {
+      let hash = 0;
+      for (let i = 0; i < seedString.length; i++) {
+        hash = seedString.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      let currentSeed = hash;
+      return () => {
+        const x = Math.sin(currentSeed++) * 10000;
+        return x - Math.floor(x);
+      };
+    };
 
-    const strokeW = p?.strokeWeight || 1.0;
-    const sizeVarParam = p?.sizeVariation ?? 0.04;
-    const baselineShiftParam = p?.baselineShift ?? 0.8;
-    const rotationParam = p?.rotation ?? 1.5;
-    const xDriftParam = p?.xDrift ?? 0.3;
-    const pressureParam = p?.pressure ?? 0.06;
-    const rhythmParam = p?.rhythm ?? 0.10;
-    const letterGapParam = p?.letterGap ?? 0;
-
-    // Determine font type (cursive or print) for character-level variation
-    // Cursive fonts shouldn't split characters because it breaks cursive connectors/ligatures.
     const cursiveFontList = [
       'Caveat', 'Dancing Script', 'Sacramento', 'Satisfy', 
       'Cedarville Cursive', 'Homemade Apple', 'La Belle Aurore', 
       'Loved by the King', 'Reenie Beanie', 'Nothing You Could Do'
     ];
-    const targetFont = overrideFont || selectedFont;
+    const targetFont = selectedFont;
     const isCursiveFont = cursiveFontList.includes(targetFont);
+    
+    const p = activeStyle?.params || null;
+    const intensity = variationIntensity / 100;
+
+    // Check if the style overrides pen preset details
+    const selectedPenObj = penPresets.find(pen => pen.id === activePen);
+    const strokeW = p?.strokeWeight || selectedPenObj?.stroke || 1.0;
+    const sizeVarParam = p?.sizeVariation ?? 0.04;
+    const baselineShiftParam = p?.baselineShift ?? (selectedPenObj?.pressure ? selectedPenObj.pressure * 8.0 : 0.8);
+    const rotationParam = p?.rotation ?? 1.5;
+    const xDriftParam = p?.xDrift ?? 0.3;
+    const pressureParam = p?.pressure ?? selectedPenObj?.pressure ?? 0.06;
+    const rhythmParam = p?.rhythm ?? 0.10;
+    const letterGapParam = p?.letterGap ?? selectedPenObj?.letterGap ?? 0;
+
     const isCursive = p ? (p.connectedness > 0.55 || isCursiveFont) : isCursiveFont;
 
-    // Split text into lines
-    const lines = text.split('\n');
-    const elements = [];
-
-    // Pre-calculate line drift offsets (like a random walk)
-    const lineOffsets = [];
-    let cumulativeDrift = 0;
-    const lineRng = getSeededRandom(text.substring(0, 30) || 'default-seed');
-
-    for (let li = 0; li < lines.length; li++) {
-      // Walk drift: simulate arm moving down/up the page
-      cumulativeDrift += (lineRng() - 0.5) * (baselineShiftParam * 1.5 * intensity);
-      // Clamp cumulative drift to avoid lines running into each other
-      cumulativeDrift = Math.max(-6, Math.min(6, cumulativeDrift));
-      
-      const lineRotation = (lineRng() - 0.5) * (rotationParam * 0.3 * intensity);
-      const lineMarginShift = (lineRng() - 0.5) * (xDriftParam * 12.0 * intensity); // Up to ±6px left margin indentation variation
-      
-      lineOffsets.push({ drift: cumulativeDrift, rotation: lineRotation, marginShift: lineMarginShift });
+    let textShadow = 'none';
+    if (strokeW > 1) {
+      const sw = (strokeW - 1) * 0.18 * intensity;
+      textShadow = `${sw * 0.4}px ${sw * 0.3}px 0.05px currentColor`;
+    } else {
+      textShadow = `0 0 0.1px currentColor`;
     }
 
-    for (let li = 0; li < lines.length; li++) {
-      const line = lines[li];
-      if (line === '') {
-        // Render empty block line to maintain spacing
-        elements.push(
-          <div key={`line-${li}`} style={{ 
-            display: 'block', 
-            height: `${fontSize * lineHeight}px` 
-          }} />
+    const renderTextNode = (text, key, parentStyles) => {
+      if (!text) return null;
+      
+      // If humanization is disabled, return normal styled span
+      if (!humanizeEnabled) {
+        return (
+          <span key={key} style={{
+            fontWeight: parentStyles.bold ? 'bold' : 'normal',
+            fontStyle: parentStyles.italic ? 'italic' : 'normal',
+            textDecoration: parentStyles.underline ? 'underline' : 'none',
+            color: parentStyles.color || fontColor,
+            fontSize: parentStyles.fontSize || `${fontSize}px`,
+          }}>
+            {text}
+          </span>
         );
-        continue;
       }
 
-      const words = line.split(' ');
-      const lineDrift = lineOffsets[li].drift;
-      const lineRot = lineOffsets[li].rotation;
-      const lineMarginShift = lineOffsets[li].marginShift;
-
-      // Ink pressure / pooling effect using text-shadow
-      let textShadow = 'none';
-      if (strokeW > 1) {
-        const sw = (strokeW - 1) * 0.18 * intensity;
-        textShadow = `${sw * 0.4}px ${sw * 0.3}px 0.05px currentColor`;
-      } else {
-        // Very subtle blur to simulate ink bleeding slightly
-        textShadow = `0 0 0.1px currentColor`;
-      }
-
-      const wordElements = [];
+      // Split into words and spacing
+      const words = text.split(/(\s+)/);
+      const elements = [];
 
       for (let wi = 0; wi < words.length; wi++) {
         const word = words[wi];
-        
-        // Add spaces between words
-        if (wi > 0) {
-          const spaceRng = getSeededRandom(`space-${li}-${wi}`);
-          const spaceVariation = spaceRng() * 4 - 2; // -2px to +2px space variation
-          const extraSpace = rhythmParam * 3 * spaceVariation * intensity;
-          wordElements.push(
-            <span key={`sp-${li}-${wi}`} style={{
-              display: 'inline',
-              wordSpacing: `${extraSpace}px`,
-            }}>{' '}</span>
-          );
-        }
-
         if (!word) continue;
 
-        // Word-level transformations (shared by all characters in the word)
-        const wordRng = getSeededRandom(`word-${li}-${wi}-${word}`);
+        if (/^\s+$/.test(word)) {
+          const spaceRng = getSeededRandom(`space-${key}-${wi}`);
+          const spaceVariation = spaceRng() * 4 - 2; // -2px to +2px
+          const extraSpace = rhythmParam * 3 * spaceVariation * intensity;
+          elements.push(
+            <span key={`space-${wi}`} style={{
+              display: 'inline',
+              whiteSpace: 'pre-wrap',
+              wordSpacing: `${extraSpace}px`,
+            }}>{word}</span>
+          );
+          continue;
+        }
+
+        const wordRng = getSeededRandom(`word-${key}-${wi}-${word}`);
         const wordYShift = (wordRng() - 0.5) * (baselineShiftParam * 0.8 * intensity);
         const wordRotation = (wordRng() - 0.5) * (rotationParam * 0.3 * intensity);
         const wordOpacity = 1 - wordRng() * (pressureParam * 0.15 * intensity);
         const extraWordSpacing = (wordRng() - 0.5) * (xDriftParam * 1.5 * intensity);
-        
-        // Shape deformation at word level
         const wordScaleX = 1 + (wordRng() - 0.5) * (sizeVarParam * 0.8 * intensity);
         const wordScaleY = 1 + (wordRng() - 0.5) * (sizeVarParam * 0.8 * intensity);
         const wordSkewX = (wordRng() - 0.5) * (rotationParam * 0.5 * intensity);
 
+        const inlineWordStyles = {
+          display: 'inline-block',
+          transform: `translateY(${wordYShift}px) rotate(${wordRotation}deg) scale(${wordScaleX}, ${wordScaleY}) skewX(${wordSkewX}deg)`,
+          transformOrigin: 'center bottom',
+          opacity: wordOpacity,
+          textShadow,
+          marginRight: `${extraWordSpacing}px`,
+          fontWeight: parentStyles.bold ? 'bold' : 'normal',
+          fontStyle: parentStyles.italic ? 'italic' : 'normal',
+          textDecoration: parentStyles.underline ? 'underline' : 'none',
+          color: parentStyles.color || fontColor,
+          fontSize: parentStyles.fontSize || `${fontSize}px`,
+        };
+
         if (isCursive) {
-          // CURSIVE MODE: Render the entire word as a single block to keep connections
-          wordElements.push(
-            <span key={`w-${li}-${wi}`} style={{
-              display: 'inline-block',
-              transform: `translateY(${wordYShift}px) rotate(${wordRotation}deg) scale(${wordScaleX}, ${wordScaleY}) skewX(${wordSkewX}deg)`,
-              transformOrigin: 'center bottom',
-              opacity: wordOpacity,
-              textShadow,
-              marginRight: `${extraWordSpacing}px`,
-            }}>
+          elements.push(
+            <span key={`w-${wi}`} style={inlineWordStyles}>
               {word}
             </span>
           );
         } else {
-          // PRINT MODE: Render letter-by-letter with micro-variations
           const charElements = word.split('').map((char, ci) => {
-            const charRng = getSeededRandom(`char-${li}-${wi}-${ci}-${char}`);
-            
-            // Micro-variations per character
+            const charRng = getSeededRandom(`char-${key}-${wi}-${ci}-${char}`);
             const charYShift = (charRng() - 0.5) * (baselineShiftParam * 0.7 * intensity);
             const charRotation = (charRng() - 0.5) * (rotationParam * 0.8 * intensity);
-            
-            // Character-level unique deformation
-            const charScaleX = 1 + (charRng() - 0.5) * (sizeVarParam * 1.6 * intensity); // stretch/squeeze width
-            const charScaleY = 1 + (charRng() - 0.5) * (sizeVarParam * 1.6 * intensity); // stretch/squeeze height
-            const charSkewX = (charRng() - 0.5) * (rotationParam * 0.8 * intensity);    // unique shear
-            
+            const charScaleX = 1 + (charRng() - 0.5) * (sizeVarParam * 1.6 * intensity);
+            const charScaleY = 1 + (charRng() - 0.5) * (sizeVarParam * 1.6 * intensity);
+            const charSkewX = (charRng() - 0.5) * (rotationParam * 0.8 * intensity);
             const charOpacity = 1 - charRng() * (pressureParam * 0.12 * intensity);
-            // Character spacing (kerning jitter)
             const charSpacing = letterGapParam + (charRng() - 0.5) * (xDriftParam * 1.8 * intensity);
 
             return (
@@ -852,12 +836,10 @@ export default function Transformation() {
             );
           });
 
-          wordElements.push(
-            <span key={`w-${li}-${wi}`} style={{
-              display: 'inline-block',
+          elements.push(
+            <span key={`w-${wi}`} style={{
+              ...inlineWordStyles,
               transform: `translateY(${wordYShift}px) rotate(${wordRotation}deg)`,
-              textShadow,
-              marginRight: `${extraWordSpacing}px`,
             }}>
               {charElements}
             </span>
@@ -865,21 +847,161 @@ export default function Transformation() {
         }
       }
 
-      elements.push(
-        <div key={`line-${li}`} style={{
-          display: 'block',
-          textAlign: textAlignment,
-          textAlignLast: textAlignment === 'justify' ? 'justify' : 'auto',
-          transform: `translateY(${lineDrift}px) rotate(${lineRot}deg)`,
-          transformOrigin: 'left center',
-          marginLeft: `${lineMarginShift}px`,
-          minHeight: `${fontSize * lineHeight}px`,
-        }}>
-          {wordElements}
-        </div>
-      );
-    }
+      return <span key={key}>{elements}</span>;
+    };
 
+    const walk = (node, key, parentStyles = {}) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return renderTextNode(node.textContent, key, parentStyles);
+      }
+
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = node.tagName.toLowerCase();
+        
+        // Extract inline styles of this element and adjust contrast
+        let customColor = node.style.color || parentStyles.color || fontColor;
+        const bgLum = getLuminance(bgColor);
+        const textLum = getLuminance(customColor);
+        const lighter = Math.max(bgLum, textLum);
+        const darker = Math.min(bgLum, textLum);
+        if ((lighter + 0.05) / (darker + 0.05) < 3.0) {
+          customColor = fontColor;
+        }
+        let customFontSize = parentStyles.fontSize || `${fontSize}px`;
+        if (node.style.fontSize) {
+          customFontSize = node.style.fontSize;
+        }
+
+        const childStyles = {
+          ...parentStyles,
+          bold: parentStyles.bold || tagName === 'strong' || tagName === 'b' || node.style.fontWeight === 'bold',
+          italic: parentStyles.italic || tagName === 'em' || tagName === 'i' || node.style.fontStyle === 'italic',
+          underline: parentStyles.underline || tagName === 'u' || node.style.textDecoration?.includes('underline'),
+          color: customColor,
+          fontSize: customFontSize,
+        };
+
+        const children = Array.from(node.childNodes).map((child, idx) => 
+          walk(child, `${key}-${idx}`, childStyles)
+        );
+
+        if (tagName === 'p' || tagName.startsWith('h') || tagName === 'blockquote' || tagName === 'li') {
+          const align = node.style.textAlign || node.getAttribute('align') || parentStyles.textAlign || textAlignment;
+          const indent = node.style.paddingLeft || node.style.marginLeft || '0px';
+
+          // Apply natural baseline wobble to block elements as well
+          const blockRng = getSeededRandom(`block-${key}`);
+          const blockDrift = (blockRng() - 0.5) * (baselineShiftParam * 0.9 * intensity);
+          const blockRot = (blockRng() - 0.5) * (rotationParam * 0.15 * intensity);
+          const blockMargin = (blockRng() - 0.5) * (xDriftParam * 4.0 * intensity);
+
+          let blockStyles = {
+            display: 'block',
+            textAlign: align,
+            textAlignLast: align === 'justify' ? 'justify' : 'auto',
+            transform: `translateY(${blockDrift}px) rotate(${blockRot}deg)`,
+            transformOrigin: 'left center',
+            marginLeft: `calc(${indent} + ${blockMargin}px)`,
+            minHeight: `${parseInt(customFontSize) * lineHeight}px`,
+            marginBottom: tagName.startsWith('h') ? '12px' : '8px',
+            marginTop: tagName.startsWith('h') ? '16px' : '0px',
+            lineHeight: lineHeight,
+          };
+
+          if (tagName === 'blockquote') {
+            blockStyles = {
+              ...blockStyles,
+              borderLeft: '3px solid rgba(255, 215, 0, 0.4)',
+              paddingLeft: '16px',
+              fontStyle: 'italic',
+              background: 'rgba(255,255,255,0.01)',
+              margin: '12px 0 12px 8px',
+            };
+          }
+
+          if (tagName === 'li') {
+            // Render bullet or item list item layout
+            return (
+              <li key={key} style={{
+                ...blockStyles,
+                display: 'list-item',
+                marginLeft: `calc(16px + ${indent} + ${blockMargin}px)`,
+              }}>
+                {children}
+              </li>
+            );
+          }
+
+          return (
+            <div key={key} style={blockStyles}>
+              {children}
+            </div>
+          );
+        }
+
+        if (tagName === 'ul') {
+          return (
+            <ul key={key} style={{ listStyleType: 'disc', paddingLeft: '20px', margin: '8px 0' }}>
+              {children}
+            </ul>
+          );
+        }
+
+        if (tagName === 'ol') {
+          return (
+            <ol key={key} style={{ listStyleType: 'decimal', paddingLeft: '20px', margin: '8px 0' }}>
+              {children}
+            </ol>
+          );
+        }
+
+        if (tagName === 'span' || tagName === 'strong' || tagName === 'em' || tagName === 'u' || tagName === 'a') {
+          return (
+            <span key={key} style={{
+              fontWeight: childStyles.bold ? 'bold' : 'normal',
+              fontStyle: childStyles.italic ? 'italic' : 'normal',
+              textDecoration: childStyles.underline ? 'underline' : 'none',
+              color: childStyles.color,
+            }}>
+              {children}
+            </span>
+          );
+        }
+
+        if (tagName === 'img') {
+          const src = node.getAttribute('src');
+          const alt = node.getAttribute('alt') || '';
+          return (
+            <div key={key} style={{
+              display: 'block',
+              margin: '16px auto',
+              maxWidth: '100%',
+              textAlign: 'center',
+              pointerEvents: 'auto',
+            }}>
+              <img src={src} alt={alt} style={{
+                maxWidth: '90%',
+                maxHeight: '350px',
+                borderRadius: '8px',
+                border: '1px solid rgba(0,0,0,0.15)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                display: 'inline-block',
+                background: '#fff',
+                padding: '4px',
+              }} />
+            </div>
+          );
+        }
+
+        return <span key={key}>{children}</span>;
+      }
+
+      return null;
+    };
+
+    const elements = Array.from(doc.body.childNodes).map((node, idx) => 
+      walk(node, `root-${idx}`)
+    );
     return elements;
   };
 
@@ -887,17 +1009,18 @@ export default function Transformation() {
   const renderBackgroundPattern = () => {
     if (!showLines || lineType === 'none') return null;
 
+    const gap = fontSize * lineHeight;
+
     if (lineType === 'ruled') {
       return (
-        <div style={styles.ruledLines}>
-          {Array.from({ length: 40 }).map((_, i) => (
-            <div key={i} style={{
-              position: 'absolute', left: showMargin ? '55px' : 0, right: 0,
-              height: '1px', background: lineColor,
-              top: `${(i + 1) * fontSize * lineHeight}px`,
-            }} />
-          ))}
-        </div>
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          backgroundImage: `repeating-linear-gradient(transparent, transparent ${gap - 1}px, ${lineColor} ${gap - 1}px, ${lineColor} ${gap}px)`,
+          backgroundSize: `100% ${gap}px`,
+          marginTop: `${gap}px`,
+        }} />
       );
     }
 
@@ -950,7 +1073,7 @@ export default function Transformation() {
             <feDisplacementMap 
               in="SourceGraphic" 
               in2="mixedNoise" 
-              scale={Math.max(0.6, Math.min(3.0, (fontSize / 22) * 1.5 * (variationIntensity / 100)))} 
+              scale={Math.max(0.6, Math.min(3.5, (fontSize / 22) * (selectedPenObj?.stroke || 1.25) * 1.2 * (variationIntensity / 100)))} 
               xChannelSelector="R" 
               yChannelSelector="G" 
               result="displaced" 
@@ -994,7 +1117,24 @@ export default function Transformation() {
               <span>AI → Handwriting</span>
               <span style={styles.modeSub}>Convert typed/AI text into handwritten style</span>
             </button>
+            
             <div style={styles.modeArrow}><ArrowRightLeft size={20} /></div>
+
+            <button
+              id="mode-handwriting-to-handwriting"
+              onClick={() => setTransformMode('handwriting_to_handwriting')}
+              style={{
+                ...styles.modeBtn,
+                ...(transformMode === 'handwriting_to_handwriting' ? styles.modeBtnActive : {}),
+              }}
+            >
+              <PenTool size={18} />
+              <span>Handwriting → My Handwriting</span>
+              <span style={styles.modeSub}>Convert classmate's/other handwriting to your own style</span>
+            </button>
+
+            <div style={styles.modeArrow}><ArrowRightLeft size={20} /></div>
+            
             <button
               id="mode-handwriting-to-ai"
               onClick={() => setTransformMode('handwriting_to_ai')}
@@ -1429,11 +1569,11 @@ export default function Transformation() {
             <div style={styles.controlSection}>
               <h3 style={styles.sectionTitle}>
                 <Sliders size={18} />
-                {transformMode === 'ai_to_handwriting' ? 'Handwriting Style' : 'AI Output Settings'}
+                {transformMode === 'ai_to_handwriting' || transformMode === 'handwriting_to_handwriting' ? 'Handwriting Style' : 'AI Output Settings'}
               </h3>
 
               {/* ── Your Saved Styles ───────────────────── */}
-              {transformMode === 'ai_to_handwriting' && (
+              {(transformMode === 'ai_to_handwriting' || transformMode === 'handwriting_to_handwriting') && (
                 <>
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -1535,6 +1675,42 @@ export default function Transformation() {
 
                   {/* ── Customization Controls ─────────────── */}
                   <div style={styles.controls}>
+                    <div style={styles.controlGroupFullWidth}>
+                      <label style={styles.controlLabel}>Pen Preset Selection</label>
+                      <div style={styles.penPresetGrid}>
+                        {penPresets.map(pen => {
+                          const isActive = activePen === pen.id;
+                          return (
+                            <button
+                              key={pen.id}
+                              onClick={() => {
+                                setActivePen(pen.id);
+                                setFontColor(pen.color);
+                                setLetterSpacing(pen.letterGap);
+                              }}
+                              style={{
+                                ...styles.penCard,
+                                borderColor: isActive ? 'var(--accent-gold)' : 'var(--border-subtle)',
+                                background: isActive ? 'rgba(255,215,0,0.06)' : 'var(--bg-glass)',
+                                boxShadow: isActive ? '0 0 10px rgba(255,215,0,0.15)' : 'none',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '1.2rem' }}>
+                                  {pen.id.includes('ballpoint') ? '🖊️' : pen.id.includes('gel') ? '✒️' : '✒️'}
+                                </span>
+                                <div style={{ textAlign: 'left' }}>
+                                  <div style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-primary)' }}>{pen.label}</div>
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                    Stroke: {pen.stroke}mm · Pressure: {Math.round(pen.pressure * 100)}%
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div style={styles.controlGroup}>
                       <label style={styles.controlLabel}>Font Size ({fontSize}px)</label>
                       <input type="range" min="14" max="48" value={fontSize}
@@ -1820,7 +1996,7 @@ export default function Transformation() {
                 >
                   {loading ? (
                     <><RefreshCw size={18} className="animate-spin" /> Transforming…</>
-                  ) : transformMode === 'ai_to_handwriting' ? (
+                  ) : (transformMode === 'ai_to_handwriting' || transformMode === 'handwriting_to_handwriting') ? (
                     <><Sparkles size={18} /> Transform to Handwriting</>
                   ) : (
                     <><Zap size={18} /> Transform to AI Text</>
@@ -1838,7 +2014,7 @@ export default function Transformation() {
           )}
 
           {/* ── Live Editable Preview ────────────────────────── */}
-          {(textContent || editorContent || transformed) && transformMode === 'ai_to_handwriting' && (
+          {(textContent || editorContent || transformed) && (transformMode === 'ai_to_handwriting' || transformMode === 'handwriting_to_handwriting') && (
             <div style={styles.previewSection}>
               <div style={styles.previewHeader}>
                 <h3 style={styles.sectionTitle}>
@@ -1893,14 +2069,14 @@ export default function Transformation() {
                 <div style={{
                   ...styles.previewContent,
                   paddingLeft: showMargin && lineType === 'ruled' ? '15px' : '0',
-                  pointerEvents: 'none',
+                  pointerEvents: 'auto',
                   // Global slant applied to ALL text (much more natural than per-char skew)
                   transform: activeStyle?.params?.slant ? `skewX(${activeStyle.params.slant * 0.3}deg)` : 'none',
                   // High-quality SVG displacement filter for hand tremor + ink absorption simulation
                   filter: 'url(#natural-ink-filter) contrast(1.02) saturate(1.05)',
                   WebkitFontSmoothing: 'antialiased',
                 }}>
-                  {renderHumanizedText(getPlainText(transformedText || editorContent || textContent) || ' ')}
+                  {renderHTMLToHandwriting(transformedText || editorContent || textContent || ' ')}
                 </div>
               </div>
             </div>
@@ -2045,6 +2221,29 @@ const styles = {
     marginTop: '16px',
   },
   controlGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  controlGroupFullWidth: {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '8px',
+  },
+  penPresetGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+    gap: '10px',
+    marginTop: '6px',
+  },
+  penCard: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '12px 16px',
+    borderRadius: 'var(--radius-md)',
+    border: '2px solid var(--border-subtle)',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    textAlign: 'left',
+  },
   controlLabel: { fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-secondary)' },
   range: { width: '100%', cursor: 'pointer', accentColor: '#ffd700' },
   colorPicker: {

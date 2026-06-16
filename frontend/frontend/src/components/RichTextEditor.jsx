@@ -6,11 +6,12 @@ import FontFamily from '@tiptap/extension-font-family';
 import Color from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
+import TiptapImage from '@tiptap/extension-image';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Quote, Undo2, Redo2, Highlighter,
-  Type, Palette
+  Type, Palette, Image as ImageIcon
 } from 'lucide-react';
 
 const fontFamilies = [
@@ -42,6 +43,9 @@ export default function RichTextEditor({ content, onUpdate, placeholder }) {
       Color,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Highlight.configure({ multicolor: true }),
+      TiptapImage.configure({
+        allowBase64: true,
+      }),
     ],
     content: content || '',
     onUpdate: ({ editor }) => {
@@ -51,10 +55,44 @@ export default function RichTextEditor({ content, onUpdate, placeholder }) {
       attributes: {
         'data-placeholder': placeholder || 'Start typing or paste your text here...',
       },
+      handlePaste(view, event) {
+        const items = (event.clipboardData || event.originalEvent.clipboardData)?.items || [];
+        for (const item of items) {
+          if (item.type.indexOf('image') === 0) {
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              view.dispatch(view.state.tr.replaceSelectionWith(
+                view.state.schema.nodes.image.create({ src: e.target.result })
+              ));
+            };
+            reader.readAsDataURL(blob);
+            return true; // handled image paste
+          }
+        }
+        return false; // let default paste happen
+      }
     },
   });
 
   if (!editor) return null;
+
+  const triggerImageUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          editor.chain().focus().setImage({ src: event.target.result }).run();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
 
   const ToolBtn = ({ onClick, active, children, title }) => (
     <button
@@ -124,6 +162,9 @@ export default function RichTextEditor({ content, onUpdate, placeholder }) {
         <ToolBtn onClick={() => editor.chain().focus().toggleHighlight().run()}
           active={editor.isActive('highlight')} title="Highlight">
           <Highlighter size={16} />
+        </ToolBtn>
+        <ToolBtn onClick={triggerImageUpload} title="Insert Image / Screenshot">
+          <ImageIcon size={16} />
         </ToolBtn>
 
         <div style={styles.divider} />

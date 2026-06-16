@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -12,6 +13,7 @@ const SOCKET_URL = 'http://127.0.0.1:5000';
 
 export default function ChatRoom() {
   const { user, api, addToast } = useAuth();
+  const navigate = useNavigate();
   const [socket, setSocket] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState(null);
@@ -349,9 +351,22 @@ export default function ChatRoom() {
                             <p style={styles.senderName}>{msg.sender_name}</p>
                           )}
                           {msg.message_type === 'file' ? (
-                            <div style={styles.fileMsg}>
-                              <FileText size={16} />
-                              <span>{msg.file_name || 'Shared file'}</span>
+                            <div style={styles.fileCard}>
+                              <div style={styles.fileCardInfo}>
+                                <div style={styles.fileIconContainer}>
+                                  <FileText size={20} style={{ color: 'var(--accent-gold)' }} />
+                                </div>
+                                <div style={styles.fileDetails}>
+                                  <p style={styles.fileName}>{msg.file_name || 'Shared Document'}</p>
+                                  <p style={styles.fileMeta}>Click to load in Studio</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => navigate('/transform', { state: { fileId: msg.file_id } })}
+                                style={styles.openStudioBtn}
+                              >
+                                Open in Studio
+                              </button>
                             </div>
                           ) : (
                             <p style={{ margin: 0 }}>{msg.content}</p>
@@ -508,6 +523,66 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: '8px',
     padding: '6px 10px', background: 'rgba(255,255,255,0.06)',
     borderRadius: 'var(--radius-sm)',
+  },
+  fileCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    padding: '14px',
+    background: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    minWidth: '220px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+  },
+  fileCardInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  fileIconContainer: {
+    width: '36px',
+    height: '36px',
+    borderRadius: 'var(--radius-sm)',
+    background: 'rgba(255, 215, 0, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  fileDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    textAlign: 'left',
+  },
+  fileName: {
+    margin: 0,
+    fontWeight: 600,
+    fontSize: '0.85rem',
+    color: 'var(--text-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    maxWidth: '180px',
+  },
+  fileMeta: {
+    margin: 0,
+    fontSize: '0.7rem',
+    color: 'var(--text-muted)',
+  },
+  openStudioBtn: {
+    padding: '8px 12px',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--accent-gold)',
+    background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,180,0,0.08))',
+    color: 'var(--accent-gold)',
+    fontWeight: 600,
+    fontSize: '0.78rem',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 2px 6px rgba(255, 215, 0, 0.1)',
   },
   msgTime: {
     display: 'block', textAlign: 'right', fontSize: '0.65rem',

@@ -24,6 +24,10 @@ const botResponses = {
   '/settings': "⚙️ Settings:\n• Change password\n• Update email/phone\n• Toggle dark/light theme\n• Notification preferences\n• Delete account option",
   
   '/shortcuts': "⌨️ Shortcuts in Editor:\n• Ctrl+B — Bold\n• Ctrl+I — Italic\n• Ctrl+U — Underline\n• Ctrl+Z — Undo\n• Ctrl+Y — Redo\n• Ctrl+Shift+L — Bullet list",
+  
+  '/presets': "🖊️ Realistic Pen Presets Guide:\n\nOur editor simulates the physical flow of different inks:\n• Ballpoint Pen: Finely balanced (0.9mm) with standard pressure. Perfect for general writing.\n• Gel Pen: Rich, dark flow (1.25mm) with slightly tighter character connections and bleed.\n• Fountain Pen: Elegant thick-thin strokes (1.6mm) with realistic pressure variation (20%) and higher ink absorption/bleed into the paper fibers.\n\nChoose your pen Preset in the Handwriting Style panel to instantly change ink behavior!",
+  
+  '/print': "🖨️ Printing & Export Optimization Tips:\n\nTo make your assignments look 100% human-written after printing:\n1. Use Cream Ruled Paper: Choose the 'Lined Cream' background preset. The yellow/cream hue blends beautifully when printed.\n2. Fine-tune Jitter: Enable 'Natural Handwriting Mode' at ~65% intensity. This adds realistic hand-tremors, slant drift, and character spacing variations.\n3. Print Settings: Print in color at 600 DPI if possible. High DPI ensures the subtle ink bleed filter contours look soft and realistic, not pixelated.\n4. PDF Export: Click the 'PDF' button to download a high-res vector-embedded multi-page document.",
 };
 
 function getBotReply(msg) {
@@ -60,6 +64,12 @@ function getBotReply(msg) {
   if (lower.includes('feature')) {
     return botResponses['/features'];
   }
+  if (lower.includes('preset') || lower.includes('pen') || lower.includes('ink') || lower.includes('ballpoint') || lower.includes('gel') || lower.includes('fountain')) {
+    return botResponses['/presets'];
+  }
+  if (lower.includes('print') || lower.includes('export') || lower.includes('paper') || lower.includes('optimiz')) {
+    return botResponses['/print'];
+  }
   if (lower.includes('thank')) {
     return "You're welcome! 😊 Let me know if you need anything else.";
   }
@@ -67,14 +77,18 @@ function getBotReply(msg) {
     return "📥 After transforming, use the buttons above the preview:\n• PDF — generates a proper multi-page PDF\n• PNG — high-res image export\n• Original File — download your uploaded file\n• Copy — copy text to clipboard";
   }
   
-  return "I'm not sure about that. Try:\n• /help — see all commands\n• /fonts — browse 20 handwriting styles\n• /humanize — learn about natural writing mode\n• Or ask about uploading, transforming, or features!";
+  return "I'm not sure about that. Try:\n• /help — see all commands\n• /fonts — browse 20 handwriting styles\n• /humanize — learn about natural writing mode\n• /presets — read about realistic pen presets\n• /print — printing & export tips\n• Or ask about uploading, transforming, or features!";
 }
 
 export default function ChatBot() {
   const { isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: 'bot', text: "Hi! 👋 I'm your Handwriting AI assistant. Type /help to get started!" }
+    { 
+      from: 'bot', 
+      text: "Hi! 👋 I'm your Handwriting AI assistant. Click one of the quick guides below or type a question to get started!",
+      isWelcome: true 
+    }
   ]);
   const [input, setInput] = useState('');
   const chatEndRef = useRef(null);
@@ -95,6 +109,16 @@ export default function ChatBot() {
       const reply = getBotReply(userMsg.text);
       setMessages(prev => [...prev, { from: 'bot', text: reply }]);
     }, 500);
+  };
+
+  const handleQuickCommand = (cmdText, label) => {
+    const userMsg = { from: 'user', text: label };
+    setMessages(prev => [...prev, userMsg]);
+
+    setTimeout(() => {
+      const reply = getBotReply(cmdText);
+      setMessages(prev => [...prev, { from: 'bot', text: reply }]);
+    }, 450);
   };
 
   return (
@@ -139,6 +163,24 @@ export default function ChatBot() {
                   {msg.text.split('\n').map((line, j) => (
                     <span key={j}>{line}<br /></span>
                   ))}
+                  {msg.isWelcome && (
+                    <div style={styles.quickChipsContainer}>
+                      {[
+                        { label: '💡 Cloning Guide', cmd: '/howto' },
+                        { label: '🖊️ Pen Presets Info', cmd: '/presets' },
+                        { label: '💬 Chat Rooms', cmd: '/chat' },
+                        { label: '📥 Printing Tips', cmd: '/print' },
+                      ].map(chip => (
+                        <button
+                          key={chip.cmd}
+                          onClick={() => handleQuickCommand(chip.cmd, chip.label)}
+                          style={styles.quickChip}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -198,14 +240,16 @@ const styles = {
     right: '24px',
     width: '380px',
     height: '520px',
-    background: 'rgba(10, 12, 20, 0.98)',
-    border: '1px solid var(--border-medium)',
+    background: 'rgba(15, 18, 36, 0.82)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: 'var(--radius-xl)',
-    boxShadow: 'var(--shadow-lg)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.35), 0 0 30px rgba(99, 102, 241, 0.15)',
     display: 'flex',
     flexDirection: 'column',
     zIndex: 9999,
-    animation: 'fadeInUp 0.3s ease',
+    animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
     overflow: 'hidden',
   },
   header: {
@@ -298,5 +342,24 @@ const styles = {
     justifyContent: 'center',
     cursor: 'pointer',
     flexShrink: 0,
+  },
+  quickChipsContainer: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+    marginTop: '12px',
+    paddingTop: '10px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+  },
+  quickChip: {
+    padding: '6px 12px',
+    borderRadius: 'var(--radius-full)',
+    border: '1px solid rgba(255, 215, 0, 0.2)',
+    background: 'rgba(255, 215, 0, 0.06)',
+    color: 'var(--accent-gold)',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
   },
 };

@@ -114,32 +114,68 @@ def _preprocess_image_for_ocr(img, strategy='light'):
     Apply preprocessing to a PIL Image for handwriting OCR.
     
     Strategies:
-    - 'minimal': Just grayscale + resize. Best for clean, dark handwriting.
-    - 'light': Grayscale + slight contrast boost + sharpen. Good general purpose.
+    - 'adaptive': Grayscale -> Gaussian blur -> adaptive Gaussian thresholding (highly robust against shadows/lines).
+    - 'otsu': Grayscale -> Otsu binarization.
+    - 'light': PIL grayscale + contrast boost + sharpen.
+    - 'minimal': Just PIL grayscale + resize.
     """
-    from PIL import ImageFilter, ImageEnhance, ImageOps
-
-    # Convert to RGB first if needed
+    from PIL import ImageFilter, ImageEnhance, ImageOps, Image
+    import numpy as np
+    
+    # 1. Convert to RGB first if needed
     if img.mode != 'RGB':
         img = img.convert('RGB')
 
-    # Convert to grayscale
-    img = ImageOps.grayscale(img)
-
-    # Resize to optimal OCR range (~3000px wide)
-    # Tesseract works best at 300 DPI equivalent. Too large = slow + noisy.
+    # Standardize width to ~3000px wide for optimal OCR (balances DPI/noise)
     w, h = img.size
     target_w = 3000
     if w < 1500 or w > 4500:
         scale = target_w / w
         img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        w, h = img.size
+
+    # 2. Apply OpenCV strategies if requested
+    if strategy in ('adaptive', 'otsu'):
+        try:
+            import cv2
+            # Convert PIL to OpenCV (numpy BGR)
+            open_cv_image = np.array(img)
+            # RGB to BGR
+            open_cv_image = open_cv_image[:, :, ::-1].copy()
+            # Convert to gray
+            gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
+            
+            if strategy == 'adaptive':
+                # Remove high frequency noise
+                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                # Adaptive thresholding to isolate strokes from shadows and lines
+                thresh = cv2.adaptiveThreshold(
+                    blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                    cv2.THRESH_BINARY, 25, 12
+                )
+                # Convert back to PIL Image
+                return Image.fromarray(thresh)
+                
+            elif strategy == 'otsu':
+                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                return Image.fromarray(thresh)
+                
+        except Exception as e:
+            print(f"OpenCV preprocessing failed: {e}. Falling back to PIL.")
+            # Fallback to 'light' PIL strategy on error
+            strategy = 'light'
+
+    # 3. Apply PIL strategies
+    # Convert to grayscale
+    img = ImageOps.grayscale(img)
 
     if strategy == 'minimal':
         return img
 
     if strategy == 'light':
         enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.5)
+        img = enhancer.enhance(1.6)
         img = img.filter(ImageFilter.SHARPEN)
         return img
 
@@ -149,69 +185,68 @@ def _preprocess_image_for_ocr(img, strategy='light'):
 def _score_ocr_quality(text):
     """
     Score OCR output quality. Higher = better readable English text.
-    
-    Measures:
-    - Average word length (real words are 3-8 chars; garbled text has many 1-2 char fragments)
-    - Ratio of real words (3+ letters) to total tokens
-    - Clean character ratio (letters + spaces vs noise characters)
-    
-    Returns a float score where higher is better.
+    Handles short valid texts, penalizes gibberish symbols.
     """
-    if not text or len(text.strip()) < 5:
+    if not text or not text.strip():
         return 0.0
 
-    words = text.split()
+    clean_text = text.strip()
+    # Count alphanumeric characters
+    alpha_chars = sum(1 for c in clean_text if c.isalnum())
+    if alpha_chars == 0:
+        return 0.0
+
+    words = clean_text.split()
     if not words:
         return 0.0
 
-    # Count words that look like real English (3+ letters, mostly alpha)
+    # Common short words to avoid penalizing short valid sentences
+    common_shorts = {'a', 'an', 'the', 'in', 'on', 'at', 'to', 'by', 'of', 'for', 'it', 'is', 'am', 'are', 'be', 'he', 'we', 'go', 'do', 'if', 'so', 'my', 'up', 'no', 'us', 'me', 'our', 'you'}
+    
     real_words = 0
     total_word_len = 0
     for w in words:
-        clean = ''.join(c for c in w if c.isalpha())
-        if len(clean) >= 3:
+        # Keep only letters to evaluate real words
+        clean = ''.join(c for c in w if c.isalpha()).lower()
+        if len(clean) >= 3 or clean in common_shorts:
             real_words += 1
             total_word_len += len(clean)
 
-    if real_words == 0:
-        return 0.0
-
-    # Average length of real words (English averages ~4.7)
-    avg_word_len = total_word_len / real_words
-
-    # Ratio of real words to total tokens
+    # Calculate metrics
     real_word_ratio = real_words / len(words)
+    avg_word_len = (total_word_len / real_words) if real_words > 0 else 1.0
 
-    # Clean character ratio (letters + spaces + basic punctuation vs total)
-    clean_chars = sum(1 for c in text if c.isalpha() or c in ' .,;:!?\n\'-')
-    clean_ratio = clean_chars / len(text) if text else 0
+    # Clean characters vs noise (letters, numbers, spaces, basic punctuation)
+    clean_chars = sum(1 for c in clean_text if c.isalnum() or c in ' .,;:!?\n\'-')
+    clean_ratio = clean_chars / len(clean_text)
 
-    # Combined quality score
-    # Reward: many real words, good average length, clean text
-    score = (real_words * 2.0) * real_word_ratio * clean_ratio * min(avg_word_len / 4.0, 1.5)
+    # Score combines alphanumeric count baseline with word structural quality
+    score = (alpha_chars * 0.15) + (real_words * 2.0) * real_word_ratio * clean_ratio * min(avg_word_len / 4.0, 1.5)
 
-    return score
+    # Penalize heavy concentrations of noise/gibberish symbols
+    symbol_count = len(clean_text) - clean_chars
+    if symbol_count > 0:
+        score -= (symbol_count * 0.4)
+
+    return max(0.1, score)
 
 
 def _ocr_extract_from_image(img):
     """
     Run Tesseract OCR on a PIL Image using multiple preprocessing strategies
     and PSM modes. Returns the best quality extracted text.
-    
-    Optimized: only 2 strategies × 2 PSM modes = 4 passes max.
-    Uses quality-based scoring (word readability) rather than raw character count.
     """
     import pytesseract
 
     best_text = ''
-    best_score = 0.0
+    best_score = -99999.0
     best_source = ''
 
-    # Only 2 strategies — light works best for most handwriting, minimal as fallback
-    strategies = ['light', 'minimal']
+    # 4 strategies covering OpenCV adaptive thresholding, Otsu, PIL light, and PIL minimal
+    strategies = ['adaptive', 'otsu', 'light', 'minimal']
 
-    # Only 2 PSM modes — 6 (uniform block) and 3 (fully automatic)
-    psm_modes = [6, 3]
+    # Page Segmentation Modes: 3 (Auto), 4 (Single column variable size), 6 (Single block)
+    psm_modes = [3, 4, 6]
 
     for strategy in strategies:
         try:
@@ -226,20 +261,23 @@ def _ocr_extract_from_image(img):
                 text = pytesseract.image_to_string(preprocessed, config=config).strip()
 
                 score = _score_ocr_quality(text)
+                alpha_count = sum(1 for c in text if c.isalpha())
+                
+                # Debug logging of current attempt
+                print(f"    Attempt: strategy={strategy}, psm={psm} => score={score:.1f} ({alpha_count} letters)")
 
                 if score > best_score:
                     best_text = text
                     best_score = score
                     best_source = f'{strategy}/psm{psm}'
-                    alpha_count = sum(1 for c in text if c.isalpha())
-                    print(f"    New best: {best_source} score={score:.1f} ({alpha_count} letters)")
 
-                # Good enough — stop early
-                if best_score > 30:
-                    print(f"    Good quality achieved, stopping early")
+                # Stop early if we achieve extremely high confidence score
+                if best_score > 60:
+                    print(f"    Excellent quality achieved early ({best_source}), stopping search")
                     return best_text
 
-            except Exception:
+            except Exception as e:
+                print(f"    OCR failed for strategy={strategy}, psm={psm}: {e}")
                 continue
 
     if best_source:
@@ -1298,6 +1336,73 @@ _FONT_PROFILES = {
 }
 
 
+def _crop_to_text_region_cv2(img):
+    """
+    Find the bounding box around actual handwritten text contours and crop the image.
+    This effectively cuts off large dark shadows at photo borders, page margins, etc.
+    """
+    import numpy as np
+    try:
+        import cv2
+        from PIL import Image
+        
+        # Convert PIL to cv2 BGR
+        cv_img = np.array(img.convert('RGB'))
+        cv_img = cv_img[:, :, ::-1].copy()
+        
+        # Convert to grayscale
+        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+        
+        # Binarize with Otsu filter on inverted grayscale (so text is white, bg is black)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+        
+        # Find contours
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return img
+
+        h_img, w_img = gray.shape
+        valid_boxes = []
+        
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            # Filter out giant boxes spanning the entire border (e.g. edge shadows)
+            if w > w_img * 0.95 or h > h_img * 0.95:
+                continue
+            # Filter out tiny noise contours
+            if w < 6 or h < 6:
+                continue
+            valid_boxes.append((x, y, x + w, y + h))
+
+        if not valid_boxes:
+            return img
+
+        # Determine composite bounding box coordinates
+        x1 = min(box[0] for box in valid_boxes)
+        y1 = min(box[1] for box in valid_boxes)
+        x2 = max(box[2] for box in valid_boxes)
+        y2 = max(box[3] for box in valid_boxes)
+
+        # Add padding (e.g., 25 pixels)
+        pad = 25
+        x1 = max(0, x1 - pad)
+        y1 = max(0, y1 - pad)
+        x2 = min(w_img, x2 + pad)
+        y2 = min(h_img, y2 + pad)
+
+        # Crop if valid crop dimensions
+        if x2 > x1 and y2 > y1:
+            cropped_cv = cv_img[y1:y2, x1:x2]
+            # Convert OpenCV back to PIL (BGR to RGB)
+            cropped_rgb = cv2.cvtColor(cropped_cv, cv2.COLOR_BGR2RGB)
+            return Image.fromarray(cropped_rgb)
+    except Exception as e:
+        print(f"Shadow bounding-box crop failed: {e}. Using original image.")
+    
+    return img
+
+
 def _analyze_handwriting_style(image_path):
     """
     Analyze a handwriting sample image and extract style characteristics.
@@ -1327,6 +1432,9 @@ def _analyze_handwriting_style(image_path):
     if img.mode != 'RGB':
         img = img.convert('RGB')
     
+    # Crop to the actual text region to avoid photo borders and margins
+    img = _crop_to_text_region_cv2(img)
+    
     # Resize for consistent analysis (max 2000px wide)
     w, h = img.size
     if w > 2000:
@@ -1337,7 +1445,7 @@ def _analyze_handwriting_style(image_path):
     
     # ── 1. Detect ink color ──────────────────────────────────
     gray = np.array(ImageOps.grayscale(img))
-    # Find the darkest 10% of pixels (ink regions)
+    # Find the darkest 15% of pixels (ink regions)
     threshold = np.percentile(gray, 15)
     ink_mask = gray < threshold
     
@@ -1507,11 +1615,19 @@ def _analyze_handwriting_style(image_path):
         # Blue ink → favor cursive/calligraphic fonts
         sample_features['cursive'] = min(1.0, sample_features['cursive'] + 0.2)
         sample_features['formal'] = min(1.0, sample_features['formal'] + 0.1)
+
+    # Weighted similarity distance: prioritize connectedness & messiness match
+    weights = {
+        'cursive': 2.0,
+        'formal': 1.0,
+        'messy': 1.5,
+        'thick': 1.0,
+    }
     
     best_font = 'Caveat'
     best_score = float('inf')
     for font_name, profile in _FONT_PROFILES.items():
-        score = sum((sample_features[k] - profile[k]) ** 2 for k in sample_features)
+        score = sum(weights[k] * ((sample_features[k] - profile[k]) ** 2) for k in sample_features)
         if score < best_score:
             best_score = score
             best_font = font_name
